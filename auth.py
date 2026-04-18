@@ -1,101 +1,48 @@
 import jwt
 from datetime import datetime, timedelta, timezone
 from db import mysql, JWT_SECRET, JWT_EXPIRY_HOURS
-from sharding_router import get_table_name
+
 
 # ─────────────────────────────────────────────
 #  Verify credentials → return user dict or None
 # ─────────────────────────────────────────────
+from sharding_router import get_all_shard_connections
+
 def login_user(username, password):
-    print("LOGIN STARTED")
-    cur = mysql.connection.cursor()
-    print("DB CONNECTED")
-
-    # ✅ FIX 1: Fetch member_id also
-    cur.execute(
-    "SELECT user_id, role FROM Users WHERE username=%s AND password=%s",
-    (username, password)
-    )
-
-    user = cur.fetchone()
-    if not user:
-        cur.close()
-        return None
-
-    # ✅ FIX 2: unpack member_id properly
-    user_id, role = user
-    member_id = user_id
-
-    # Admin — no Member record needed
-    if role == 'Admin':
-        cur.close()
-        return {
-            'role':        'Admin',
-            'member_id':   None,
-            'member_role': 'Admin',
-            'sub_id':      None
-        }
-
-    # If no member_id → invalid mapping
-    if not member_id:
-        cur.close()
-        return {
-            'role':        role,
-            'member_id':   None,
-            'member_role': 'Unknown',
-            'sub_id':      None
-        }
-
-    # ✅ FIX 3: lowercase table names
-    member_table = get_table_name('member', member_id)
-
-    cur.execute(
-        f"SELECT Role FROM {member_table} WHERE MemberID = %s",
-        (member_id,)
-    )
-    print("QUERY EXECUTED:")
-    member = cur.fetchone()
-    if not member:
-        cur.close()
-        return {
-            'role':        role,
-            'member_id':   member_id,
-            'member_role': 'Unknown',
-            'sub_id':      None
-        }
-
-    member_role = member[0]   # 'Student' or 'Staff'
-    sub_id = None
-
-    if member_role == 'Student':
-        student_table = get_table_name('student', member_id)
-        cur.execute(
-            f"SELECT StudentID FROM {student_table} WHERE MemberID=%s",
-            (member_id,)
-        )
-        row = cur.fetchone()
-        sub_id = row[0] if row else None
-
-    elif member_role == 'Staff':
-        staff_table = get_table_name('staff', member_id)
-        cur.execute(
-            f"SELECT StaffID FROM {staff_table} WHERE MemberID=%s",
-            (member_id,)
-        )
-        row = cur.fetchone()
-        sub_id = row[0] if row else None
-
-    cur.close()
-
-    return {
-        'role':        role,
-        'member_id':   member_id,
-        'member_role': member_role,
-        'sub_id':      sub_id
-    }
-    print("USER FETCHED:", user)  
-
-
+    connections = get_all_shard_connections()
+    user_data = None
+    
+    try:
+        # Check each shard to find the user
+        for conn in connections:
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT user_id, role, MemberID FROM Users WHERE username=%s AND password=%s", (username, password))
+                user = cur.fetchone()
+                
+                if user:
+                    user_id, role, member_id = user
+                    
+                    # If Admin, log them in immediately
+                    if role == 'Admin':
+                        user_data = {'role': 'Admin', 'member_id': None, 'member_role': 'Admin', 'sub_id': None}
+                        break
+                    
+                    # If regular user, get their details from the Member table on this same shard
+                    if member_id:
+                        cur.execute("SELECT Role FROM Member WHERE MemberID = %s", (member_id,))
+                        member = cur.fetchone()
+                        member_role = member[0] if member else 'Unknown'
+                        user_data = {'role': role, 'member_id': member_id, 'member_role': member_role, 'sub_id': None}
+                        break
+            finally:
+                cur.close()
+    finally:
+        for conn in connections:
+            try: conn.close()
+            except: pass
+        
+    return user_data # User dictionary or None
 # ─────────────────────────────────────────────
 #  Generate a JWT token for a logged-in user
 # ─────────────────────────────────────────────

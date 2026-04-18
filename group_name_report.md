@@ -1,12 +1,12 @@
 # Assignment 4: Sharding of the Developed Application
 **Course:** CS 432 – Databases  
-**Group Name:** [Your Group Name Here]
+**Group Name:** Interview Rejected
 
 ---
 
 ### **Submission Links**
-*   **GitHub Repository Link:** [Insert your GitHub URL here]
-*   **Video Demonstration Link:** [Insert your Video URL here]
+*   **GitHub Repository Link:** [[GitHub URL](https://github.com/SaiTeja-23110366/Databases_assignment_4)]
+*   **Video Demonstration Link:** [[Video URL](https://drive.google.com/drive/folders/12D2sIKvdpp490__UGn6eQo088IoIWKRw?usp=sharing)]
 
 ---
 

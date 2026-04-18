@@ -3,13 +3,24 @@ from db import mysql
 from auth import login_user, generate_token, decode_token
 from rbac import is_admin, is_student, is_staff
 from logging_utils import log_action
-from sharding_router import get_shard_id, get_table_name, get_all_shards
+from sharding_router import get_shard_id, get_shard_connection, get_all_shard_connections
 from transactions import (
     atomic_purchase_and_stock_update,
     atomic_update_billing_status,
     atomic_mark_attendance,
     atomic_log_waste,
 )
+import json
+from decimal import Decimal
+from datetime import date, datetime
+
+class ShardingJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
 # ─────────────────────────────────────────────
 #  Helpers
 # ─────────────────────────────────────────────
@@ -130,71 +141,93 @@ def register_routes(app):
     @app.route('/signup', methods=['GET', 'POST'])
     def signup():
         if request.method == 'POST':
-            d   = request.form
-            print(request.form)
-            cur = mysql.connection.cursor()
+            d = request.form
             try:
                 username = d['email'].split('@')[0]
-                cur.execute("SELECT COUNT(*) FROM Users WHERE username=%s", (username,))
-                if cur.fetchone()[0] > 0:
-                    return render_template('signup.html',
-                                           error='Username already exists. Use a different email.')
-                cur.execute("SELECT COUNT(*) FROM Member WHERE Email=%s", (d['email'],))
-                if cur.fetchone()[0] > 0:
-                    return render_template('signup.html', error='Email already registered.')
+                
+                # Check for existing user across all shards
+                connections = get_all_shard_connections()
+                exists = False
                 max_id = 0
-                for shard in get_all_shards('Member'):
-                    cur.execute(f"SELECT COALESCE(MAX(MemberID), 0) FROM {shard}")
+                
+                for conn in connections:
+                    cur = conn.cursor()
+                    cur.execute("SELECT COUNT(*) FROM Users WHERE username=%s", (username,))
+                    if cur.fetchone()[0] > 0:
+                        exists = True
+                    cur.execute("SELECT COUNT(*) FROM Member WHERE Email=%s", (d['email'],))
+                    if cur.fetchone()[0] > 0:
+                        exists = True
+                    
+                    cur.execute("SELECT COALESCE(MAX(MemberID), 0) FROM Member")
                     res = cur.fetchone()[0]
                     if res > max_id: max_id = res
+                    cur.close()
+                
+                if exists:
+                    for conn in connections: conn.close()
+                    return render_template('signup.html', error='Username or Email already exists.')
+
                 member_id = max_id + 1
-                member_table = get_table_name('Member', member_id)
+                shard_id = get_shard_id(member_id)
+                target_conn = connections[shard_id]
+                cur = target_conn.cursor()
+                
+                # Insert into Member
                 cur.execute(
-                    f"INSERT INTO {member_table} (MemberID, Name, DOB, Email, ContactNumber, Role) "
+                    "INSERT INTO Member (MemberID, Name, DOB, Email, ContactNumber, Role) "
                     "VALUES (%s, %s, %s, %s, %s, %s)",
                     (member_id, d['name'], d['dob'], d['email'], d['contact'], d['member_role'])
                 )
+                
                 if d['member_role'] == 'Student':
+                    # Find max StudentID across all shards
                     max_sid = 23110000
-                    for shard in get_all_shards('Student'):
-                        cur.execute(f"SELECT COALESCE(MAX(StudentID), 23110000) FROM {shard}")
-                        res = cur.fetchone()[0]
+                    for conn in connections:
+                        c = conn.cursor()
+                        c.execute("SELECT COALESCE(MAX(StudentID), 23110000) FROM Student")
+                        res = c.fetchone()[0]
                         if res > max_sid: max_sid = res
+                        c.close()
                     student_id = max_sid + 1
-                    
-                    student_table = get_table_name('Student', member_id)
                     cur.execute(
-                        f"INSERT INTO {student_table} (StudentID, MemberID, HostelBlock, RoomNo, Program) "
+                        "INSERT INTO Student (StudentID, MemberID, HostelBlock, RoomNo, Program) "
                         "VALUES (%s, %s, %s, %s, %s)",
                         (student_id, member_id, d['hostel_block'], d['room_no'], d['program'])
                     )
                 elif d['member_role'] == 'Staff':
                     max_sid = 200
-                    for shard in get_all_shards('Staff'):
-                        cur.execute(f"SELECT COALESCE(MAX(StaffID), 200) FROM {shard}")
-                        res = cur.fetchone()[0]
+                    for conn in connections:
+                        c = conn.cursor()
+                        c.execute("SELECT COALESCE(MAX(StaffID), 200) FROM Staff")
+                        res = c.fetchone()[0]
                         if res > max_sid: max_sid = res
+                        c.close()
                     staff_id = max_sid + 1
-                    
-                    staff_table = get_table_name('Staff', member_id)
                     cur.execute(
-                        f"INSERT INTO {staff_table} (StaffID, MemberID, JobRole, Salary, HireDate) "
+                        "INSERT INTO Staff (StaffID, MemberID, JobRole, Salary, HireDate) "
                         "VALUES (%s, %s, %s, %s, CURDATE())",
                         (staff_id, member_id, d['job_role'], d['salary'])
                     )
+                
+                # Insert into Users on the same shard
                 cur.execute(
-                    "INSERT INTO Users (username, password, role) VALUES (%s, %s, 'User')",
-                    (username, d['password'])
+                    "INSERT INTO Users (username, password, role, MemberID) VALUES (%s, %s, 'User', %s)",
+                    (username, d['password'], member_id)
                 )
-                mysql.connection.commit()
+                
+                target_conn.commit()
                 log_action(f"New signup: {username} ({d['member_role']})", username)
+                
+                for conn in connections: conn.close()
                 return render_template('login.html', error=None,
                                        success=f"Account created! Username: '{username}'")
             except Exception as e:
-                mysql.connection.rollback()
+                for conn in connections: 
+                    try: conn.rollback()
+                    except: pass
+                    conn.close()
                 return render_template('signup.html', error=f"Signup failed: {str(e)}")
-            finally:
-                cur.close()
         return render_template('signup.html', error=None)
     # ─────────────────────────────────────────
     #  DASHBOARD
@@ -207,32 +240,37 @@ def register_routes(app):
         role        = session.get('role')
         member_role = session.get('member_role')
         member_id   = session.get('member_id')
-        cur         = mysql.connection.cursor()
+        
         if is_admin(role):
+            connections = get_all_shard_connections()
             total_members = 0
-            for s in get_all_shards('Member'):
-                cur.execute(f"SELECT COUNT(*) FROM {s}")
-                total_members += cur.fetchone()[0]
             total_students = 0
-            for s in get_all_shards('Student'):
-                cur.execute(f"SELECT COUNT(*) FROM {s}")
-                total_students += cur.fetchone()[0]
             total_staff = 0
-            for s in get_all_shards('Staff'):
-                cur.execute(f"SELECT COUNT(*) FROM {s}")
-                total_staff += cur.fetchone()[0]
             pending_bills = 0
-            for s in get_all_shards('MonthlyMessPayment'):
-                cur.execute(f"SELECT COUNT(*) FROM {s} WHERE Status='Pending'")
+            total_expense = 0
+            low_stock = []
+            
+            for conn in connections:
+                cur = conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM Member")
+                total_members += cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM Student")
+                total_students += cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM Staff")
+                total_staff += cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM MonthlyMessPayment WHERE Status='Pending'")
                 pending_bills += cur.fetchone()[0]
-            cur.execute("SELECT COALESCE(SUM(TotalCost),0) FROM Purchase")
-            total_expense = cur.fetchone()[0]
-            cur.execute(
-                "SELECT Name, StockQty, Unit, MinStockLevel "
-                "FROM Inventory WHERE StockQty <= ReorderLevel"
-            )
-            low_stock = cur.fetchall()
-            cur.close()
+                cur.execute("SELECT COALESCE(SUM(TotalCost), 0) FROM Purchase")
+                res = cur.fetchone()[0]
+                total_expense += float(res) if res else 0.0
+                cur.execute(
+                    "SELECT Name, StockQty, Unit, MinStockLevel "
+                    "FROM Inventory WHERE StockQty <= ReorderLevel"
+                )
+                low_stock.extend(cur.fetchall())
+                cur.close()
+                conn.close()
+            
             return render_template('dashboard_admin.html',
                                    role=role, member_role=member_role,
                                    total_members=total_members,
@@ -241,85 +279,94 @@ def register_routes(app):
                                    pending_bills=pending_bills,
                                    total_expense=total_expense,
                                    low_stock=low_stock)
-        elif is_student(member_role):
-            member_table = get_table_name('Member', member_id)
-            student_table = get_table_name('Student', member_id)
-            cur.execute(f"""
-                SELECT m.Name, m.DOB, m.Email, m.ContactNumber,
-                       s.HostelBlock, s.RoomNo, s.Program, s.StudentID
-                FROM {member_table} m
-                JOIN {student_table} s ON m.MemberID = s.MemberID
-                WHERE m.MemberID = %s
-            """, (member_id,))
-            profile = cur.fetchone()
-            pay_table = get_table_name('MonthlyMessPayment', member_id)
-            cur.execute(f"""
-                SELECT StartDate, EndDate, Amount, Status
-                FROM {pay_table}
-                WHERE MemberID = %s
-                ORDER BY StartDate DESC LIMIT 6
-            """, (member_id,))
-            payments = cur.fetchall()
-            meallog_table = get_table_name('MealLog', member_id)
-            cur.execute(f"""
-                SELECT ds.MealDate, ds.MealType, ml.Status
-                FROM {meallog_table} ml
-                JOIN DailySchedule ds ON ml.ScheduleID = ds.ScheduleID
-                WHERE ml.MemberID = %s
-                ORDER BY ds.MealDate DESC LIMIT 10
-            """, (member_id,))
-            meal_logs = cur.fetchall()
-            cur.close()
-            return render_template('dashboard_student.html',
-                                   role=role, member_role=member_role,
-                                   profile=profile, payments=payments, meal_logs=meal_logs)
-        elif is_staff(member_role):
-            member_table = get_table_name('Member', member_id)
-            staff_table = get_table_name('Staff', member_id)
-            cur.execute(f"""
-                SELECT m.Name, m.DOB, m.Email, m.ContactNumber,
-                       st.JobRole, st.Salary, st.HireDate, st.StaffID
-                FROM {member_table} m
-                JOIN {staff_table} st ON m.MemberID = st.MemberID
-                WHERE m.MemberID = %s
-            """, (member_id,))
-            profile = cur.fetchone()
-            shift_table = get_table_name('StaffShiftLog', member_id)
-            staff_table = get_table_name('Staff', member_id)
-            cur.execute(f"""
-                SELECT ShiftDate, ShiftType, CheckInTime, CheckOutTime, TotalHours
-                FROM {shift_table}
-                WHERE StaffID = (SELECT StaffID FROM {staff_table} WHERE MemberID = %s)
-                ORDER BY ShiftDate DESC LIMIT 10
-            """, (member_id,))
-            shifts = cur.fetchall()
-            cur.close()
-            return render_template('dashboard_staff.html',
-                                   role=role, member_role=member_role,
-                                   profile=profile, shifts=shifts)
-        cur.close()
+        
+        elif member_id:
+            shard_id = get_shard_id(member_id)
+            conn = get_shard_connection(shard_id)
+            
+            # 🚀 SHARD ROUTING PROOF
+            print(f"\n🚀 SHARD ROUTING ACTIVE: Member {member_id} loaded from Shard {shard_id} (Port 330{7+shard_id})\n", flush=True)
+
+            cur = conn.cursor()
+            
+            if is_student(member_role):
+                cur.execute("""
+                    SELECT m.Name, m.DOB, m.Email, m.ContactNumber,
+                           s.HostelBlock, s.RoomNo, s.Program, s.StudentID
+                    FROM Member m
+                    JOIN Student s ON m.MemberID = s.MemberID
+                    WHERE m.MemberID = %s
+                """, (member_id,))
+                profile = cur.fetchone()
+                
+                cur.execute("""
+                    SELECT StartDate, EndDate, Amount, Status
+                    FROM MonthlyMessPayment
+                    WHERE MemberID = %s
+                    ORDER BY StartDate DESC LIMIT 6
+                """, (member_id,))
+                payments = cur.fetchall()
+                
+                cur.execute("""
+                    SELECT ds.MealDate, ds.MealType, ml.Status
+                    FROM MealLog ml
+                    JOIN DailySchedule ds ON ml.ScheduleID = ds.ScheduleID
+                    WHERE ml.MemberID = %s
+                    ORDER BY ds.MealDate DESC LIMIT 10
+                """, (member_id,))
+                meal_logs = cur.fetchall()
+                cur.close()
+                conn.close()
+                return render_template('dashboard_student.html',
+                                       role=role, member_role=member_role,
+                                       profile=profile, payments=payments, meal_logs=meal_logs)
+            elif is_staff(member_role):
+                cur.execute("""
+                    SELECT m.Name, m.DOB, m.Email, m.ContactNumber,
+                           st.JobRole, st.Salary, st.HireDate, st.StaffID
+                    FROM Member m
+                    JOIN Staff st ON m.MemberID = st.MemberID
+                    WHERE m.MemberID = %s
+                """, (member_id,))
+                profile = cur.fetchone()
+                
+                cur.execute("""
+                    SELECT ShiftDate, ShiftType, CheckInTime, CheckOutTime, TotalHours
+                    FROM StaffShiftLog
+                    WHERE StaffID = (SELECT StaffID FROM Staff WHERE MemberID = %s)
+                    ORDER BY ShiftDate DESC LIMIT 10
+                """, (member_id,))
+                shifts = cur.fetchall()
+                cur.close()
+                conn.close()
+                return render_template('dashboard_staff.html',
+                                       role=role, member_role=member_role,
+                                       profile=profile, shifts=shifts)
+        
         return "Unknown role", 400
     # ─────────────────────────────────────────
     #  MEMBERS
     # ─────────────────────────────────────────
     @app.route('/members')
     def view_members():
-        redir = require_login()
-        if redir:
-            return redir
-        if not is_admin(session.get('role')):
-            return render_template('403.html', role=session['role'],
-                                   member_role=session.get('member_role')), 403
-        cur = mysql.connection.cursor()
-        members = []
-        for shard in get_all_shards('Member'):
-            cur.execute(f"SELECT * FROM {shard}")
-            members.extend(cur.fetchall())
-        members.sort(key=lambda x: x[0])  # MemberID
-        cur.close()
-        return render_template('members.html', members=members,
-                               role=session['role'],
-                               member_role=session.get('member_role'))
+        from sharding_router import get_all_shard_connections
+        
+        all_members = []
+        # Open connections to all 3 physical shards 
+        connections = get_all_shard_connections()
+        
+        for i, conn in enumerate(connections):
+            # 🚀 SHARD ROUTING PROOF (Scatter-Gather)
+            print(f"📁 SCATTER-GATHER: Fetching data from Shard {i} (Port 330{7+i})", flush=True)
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM Member") # [cite: 26]
+            all_members.extend(cur.fetchall())
+            cur.close()
+            conn.close()
+        
+        # Sort merged results by MemberID for consistency
+        all_members.sort(key=lambda x: x[0])
+        return render_template('members.html', members=all_members)
     # ─────────────────────────────────────────
     #  FUNCTIONALITY 1 — Meal Attendance
     # ─────────────────────────────────────────
@@ -328,35 +375,55 @@ def register_routes(app):
         redir = require_login()
         if redir:
             return redir
-        cur = mysql.connection.cursor()
+        
         if is_admin(session.get('role')):
-            query_parts = []
-            for shard in get_all_shards('MealLog'):
-                query_parts.append(f"SELECT ScheduleID, Status FROM {shard}")
-            union_query = " UNION ALL ".join(query_parts)
-            cur.execute(f"""
-                SELECT ds.MealDate, ds.MealType, ml.Status, COUNT(*) AS Total
-                FROM ({union_query}) ml
-                JOIN DailySchedule ds ON ml.ScheduleID = ds.ScheduleID
-                GROUP BY ds.MealDate, ds.MealType, ml.Status
-                ORDER BY ds.MealDate DESC,
-                         FIELD(ds.MealType,'Breakfast','Lunch','Snacks','Dinner')
-            """)
-            data = cur.fetchall()
-            cur.close()
-            return render_template('meal_attendance.html', data=data,
+            connections = get_all_shard_connections()
+            merged_results = []
+            for conn in connections:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT ds.MealDate, ds.MealType, ml.Status, COUNT(*) AS Total
+                    FROM MealLog ml
+                    JOIN DailySchedule ds ON ml.ScheduleID = ds.ScheduleID
+                    GROUP BY ds.MealDate, ds.MealType, ml.Status
+                """)
+                merged_results.extend(cur.fetchall())
+                cur.close()
+                conn.close()
+            
+            # Since we merged counts, we might need to regroup if the same date/type/status exists on multiple shards
+            final_data = {}
+            for row in merged_results:
+                key = (row[0], row[1], row[2]) # (Date, Type, Status)
+                final_data[key] = final_data.get(key, 0) + row[3]
+            
+            # Convert back to list and sort
+            sorted_data = []
+            for key, val in final_data.items():
+                sorted_data.append((key[0], key[1], key[2], val))
+            sorted_data.sort(key=lambda x: x[0], reverse=True)
+            
+            return render_template('meal_attendance.html', data=sorted_data,
                                    role=session['role'], view='admin')
         else:
-            meallog_table = get_table_name('MealLog', session.get('member_id'))
-            cur.execute(f"""
+            member_id = session.get('member_id')
+            shard_id = get_shard_id(member_id)
+            conn = get_shard_connection(shard_id)
+
+            # 🚀 SHARD ROUTING PROOF
+            print(f"\n🚀 SHARD ROUTING ACTIVE: Member {member_id} loading Attendance from Shard {shard_id} (Port 330{7+shard_id})\n", flush=True)
+
+            cur = conn.cursor()
+            cur.execute("""
                 SELECT ds.MealDate, ds.MealType, ml.Status
-                FROM {meallog_table} ml
+                FROM MealLog ml
                 JOIN DailySchedule ds ON ml.ScheduleID = ds.ScheduleID
                 WHERE ml.MemberID = %s
                 ORDER BY ds.MealDate DESC
-            """, (session.get('member_id'),))
+            """, (member_id,))
             data = cur.fetchall()
             cur.close()
+            conn.close()
             return render_template('meal_attendance.html', data=data,
                                    role=session['role'], view='student')
     # ─────────────────────────────────────────
@@ -401,7 +468,9 @@ def register_routes(app):
         if err:
             return err
         d   = request.form
-        cur = mysql.connection.cursor()
+        # Menu is global, assuming it's on Shard 0
+        conn = get_shard_connection(0)
+        cur = conn.cursor()
         cur.execute(
             "SELECT ScheduleID FROM DailySchedule WHERE MealDate=%s AND MealType=%s",
             (d['MealDate'], d['MealType'])
@@ -419,8 +488,9 @@ def register_routes(app):
             "VALUES (%s, %s, %s, %s)",
             (schedule_id, d['ItemID'], d['QuantityPrepared'], d['Unit'])
         )
-        mysql.connection.commit()
+        conn.commit()
         cur.close()
+        conn.close()
         log_action(f"Menu item {d['ItemID']} added to schedule {schedule_id}", session['username'])
         return redirect('/menu')
     # ─────────────────────────────────────────
@@ -431,28 +501,42 @@ def register_routes(app):
         redir = require_login()
         if redir:
             return redir
-        cur = mysql.connection.cursor()
+        
         if is_admin(session.get('role')):
-            query_parts = []
-            for m_shard, p_shard in zip(get_all_shards('Member'), get_all_shards('MonthlyMessPayment')):
-                query_parts.append(f"SELECT m.Name, mp.StartDate, mp.EndDate, mp.Amount, mp.Status, mp.MonthlyPaymentID "
-                                   f"FROM {p_shard} mp JOIN {m_shard} m ON mp.MemberID = m.MemberID")
-            union_query = " UNION ALL ".join(query_parts)
-            cur.execute(f"{union_query} ORDER BY Status DESC, StartDate DESC")
-            data = cur.fetchall()
-            cur.close()
-            return render_template('billing.html', data=data,
+            connections = get_all_shard_connections()
+            merged_results = []
+            for conn in connections:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT m.Name, mp.StartDate, mp.EndDate, mp.Amount, mp.Status, mp.MonthlyPaymentID
+                    FROM MonthlyMessPayment mp
+                    JOIN Member m ON mp.MemberID = m.MemberID
+                """)
+                merged_results.extend(cur.fetchall())
+                cur.close()
+                conn.close()
+            
+            merged_results.sort(key=lambda x: (x[4], str(x[1])), reverse=True) # Status, StartDate
+            return render_template('billing.html', data=merged_results,
                                    role=session['role'], view='admin')
         else:
-            pay_table = get_table_name('MonthlyMessPayment', session.get('member_id'))
-            cur.execute(f"""
+            member_id = session.get('member_id')
+            shard_id = get_shard_id(member_id)
+            conn = get_shard_connection(shard_id)
+            
+            # 🚀 SHARD ROUTING PROOF
+            print(f"\n🚀 SHARD ROUTING ACTIVE: Member {member_id} loading Billing from Shard {shard_id} (Port 330{7+shard_id})\n", flush=True)
+
+            cur = conn.cursor()
+            cur.execute("""
                 SELECT StartDate, EndDate, Amount, Status
-                FROM {pay_table}
+                FROM MonthlyMessPayment
                 WHERE MemberID = %s
                 ORDER BY StartDate DESC
-            """, (session.get('member_id'),))
+            """, (member_id,))
             data = cur.fetchall()
             cur.close()
+            conn.close()
             return render_template('billing.html', data=data,
                                    role=session['role'], view='student')
     # ── Accepts JWT token OR session (so test scripts work) ──
@@ -481,7 +565,9 @@ def register_routes(app):
         if not is_admin(session.get('role')):
             return render_template('403.html', role=session['role'],
                                    member_role=session.get('member_role')), 403
-        cur = mysql.connection.cursor()
+        
+        conn = get_shard_connection(0) # Inventory on Shard 0
+        cur = conn.cursor()
         cur.execute("""
             SELECT IngredientID, Name, StockQty, Unit,
                    MinStockLevel, ReorderLevel, LastUpdated,
@@ -495,6 +581,7 @@ def register_routes(app):
         """)
         data = cur.fetchall()
         cur.close()
+        conn.close()
         return render_template('inventory.html', data=data, role=session['role'],
                                member_role=session.get('member_role'))
     # ── Accepts JWT token OR session (so test scripts work) ──
@@ -504,14 +591,16 @@ def register_routes(app):
         if err:
             return err
         d   = request.form
-        cur = mysql.connection.cursor()
+        conn = get_shard_connection(0)
+        cur = conn.cursor()
         cur.execute("""
             UPDATE Inventory
             SET StockQty=%s, MinStockLevel=%s, ReorderLevel=%s, LastUpdated=CURDATE()
             WHERE IngredientID=%s
         """, (d['StockQty'], d['MinStockLevel'], d['ReorderLevel'], d['IngredientID']))
-        mysql.connection.commit()
+        conn.commit()
         cur.close()
+        conn.close()
         log_action(f"Inventory updated: ingredient {d['IngredientID']}", username)
         if session.get('username'):
             return redirect('/inventory')
@@ -527,7 +616,9 @@ def register_routes(app):
         err = require_admin()
         if err:
             return err
-        cur = mysql.connection.cursor()
+        
+        conn = get_shard_connection(0) # Suppliers on Shard 0
+        cur = conn.cursor()
         cur.execute("""
             SELECT s.SupplierID, s.CompanyName, s.ContactName, s.Phone,
                    s.SupplierType, COALESCE(SUM(p.TotalCost), 0) AS TotalSpent
@@ -547,6 +638,7 @@ def register_routes(app):
         """)
         purchases = cur.fetchall()
         cur.close()
+        conn.close()
         return render_template('suppliers.html', suppliers=suppliers_data,
                                purchases=purchases, role=session['role'])
     # ─────────────────────────────────────────
@@ -560,7 +652,9 @@ def register_routes(app):
         err = require_admin()
         if err:
             return err
-        cur = mysql.connection.cursor()
+        
+        conn = get_shard_connection(0) # Waste on Shard 0
+        cur = conn.cursor()
         cur.execute("""
             SELECT ds.MealDate, ds.MealType,
                    w.WasteQty_Kg, w.Waste_category, w.RecordedDate
@@ -575,6 +669,7 @@ def register_routes(app):
         """)
         totals = cur.fetchall()
         cur.close()
+        conn.close()
         return render_template('waste.html', data=data, totals=totals, role=session['role'])
     @app.route('/waste/add', methods=['POST'])
     def waste_add():
@@ -601,24 +696,34 @@ def register_routes(app):
         redir = require_login()
         if redir:
             return redir
-        cur = mysql.connection.cursor()
-        query_parts = []
-        for shard in get_all_shards('MessRating'):
-            query_parts.append(f"SELECT ScheduleID, Rating, RatingID FROM {shard}")
-        union_query = " UNION ALL ".join(query_parts)
-        cur.execute(f"""
-            SELECT ds.MealDate, ds.MealType,
-                   ROUND(AVG(mr.Rating), 2) AS AvgRating,
-                   COUNT(mr.RatingID)       AS TotalRatings,
-                   MIN(mr.Rating)           AS MinRating,
-                   MAX(mr.Rating)           AS MaxRating
-            FROM ({union_query}) mr
-            JOIN DailySchedule ds ON mr.ScheduleID = ds.ScheduleID
-            GROUP BY ds.MealDate, ds.MealType
-            ORDER BY ds.MealDate DESC
-        """)
-        data = cur.fetchall()
-        cur.close()
+        
+        connections = get_all_shard_connections()
+        merged_ratings = []
+        for conn in connections:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT ds.MealDate, ds.MealType,
+                       mr.Rating, mr.RatingID
+                FROM MessRating mr
+                JOIN DailySchedule ds ON mr.ScheduleID = ds.ScheduleID
+            """)
+            merged_ratings.extend(cur.fetchall())
+            cur.close()
+            conn.close()
+        
+        # Aggregation
+        summary = {} # key: (Date, Type) -> [ratings]
+        for row in merged_ratings:
+            key = (row[0], row[1])
+            if key not in summary: summary[key] = []
+            summary[key].append(row[2])
+        
+        data = []
+        for key, ratings_list in summary.items():
+            avg = round(sum(ratings_list) / len(ratings_list), 2)
+            data.append((key[0], key[1], avg, len(ratings_list), min(ratings_list), max(ratings_list)))
+        
+        data.sort(key=lambda x: str(x[0]), reverse=True)
         return render_template('ratings.html', data=data, role=session['role'],
                                member_role=session.get('member_role'))
     # ── FIX: removed manual MAX(RatingID)+1 race condition.
@@ -631,25 +736,29 @@ def register_routes(app):
             return redir
         if session.get('member_role') not in ('Student', 'Admin'):
             return jsonify({'error': 'Only students can rate meals'}), 403
-        d   = request.form
-        cur = mysql.connection.cursor()
+        
+        member_id = session.get('member_id')
+        shard_id = get_shard_id(member_id)
+        conn = get_shard_connection(shard_id)
+
+        # 🚀 SHARD ROUTING PROOF
+        print(f"\n🚀 SHARD ROUTING ACTIVE: Adding Rating for Member {member_id} on Shard {shard_id} (Port 330{7+shard_id})\n", flush=True)
+
+        cur = conn.cursor()
         try:
-            # RatingID is AUTO_INCREMENT — never compute MAX()+1 manually.
-            # Omit RatingID entirely and let MySQL assign it atomically,
-            # which prevents the duplicate-key race condition under concurrency.
-            rating_table = get_table_name('MessRating', session.get('member_id'))
             cur.execute(
-                f"INSERT INTO {rating_table} (ScheduleID, MemberID, Rating, RatedOn) "
+                "INSERT INTO MessRating (ScheduleID, MemberID, Rating, RatedOn) "
                 "VALUES (%s, %s, %s, CURDATE())",
-                (d['ScheduleID'], session.get('member_id'), d['Rating'])
+                (request.form['ScheduleID'], member_id, request.form['Rating'])
             )
-            mysql.connection.commit()
+            conn.commit()
         except Exception as e:
-            mysql.connection.rollback()
+            conn.rollback()
             return jsonify({'error': str(e)}), 500
         finally:
             cur.close()
-        log_action(f"Rating {d['Rating']} for schedule {d['ScheduleID']}", session['username'])
+            conn.close()
+        log_action(f"Rating {request.form['Rating']} for schedule {request.form['ScheduleID']}", session['username'])
         return redirect('/ratings')
     # ─────────────────────────────────────────
     #  ALL TABLES PAGE
@@ -683,43 +792,55 @@ def register_routes(app):
         username, err = require_admin_any()
         if err:
             return err
-        cur = mysql.connection.cursor()
+        conn = get_shard_connection(0)
+        cur = conn.cursor()
         cur.execute("SHOW TABLES")
         tables = [r[0] for r in cur.fetchall()]
         cur.close()
+        conn.close()
         return jsonify(tables)
     @app.route('/table/<table_name>')
     def get_table_data(table_name):
         username, err = require_admin_any()
         if err:
             return err
-        cur = mysql.connection.cursor()
+        conn = get_shard_connection(0)
+        cur = conn.cursor()
         actual = resolve_table(cur, table_name)
         if not actual:
             cur.close()
+            conn.close()
             return jsonify({'error': 'Invalid table'}), 400
         cur.execute("SELECT * FROM `{}`".format(actual))
         rows    = cur.fetchall()
         columns = [d[0] for d in cur.description]
         cur.close()
-        return jsonify({'columns': columns, 'rows': rows})
+        conn.close()
+        # Use custom encoder for JSON serialization
+        return app.response_class(
+            json.dumps({'columns': columns, 'rows': rows}, cls=ShardingJSONEncoder),
+            mimetype='application/json'
+        )
     @app.route('/delete/<table_name>', methods=['POST'])
     def delete_row(table_name):
         username, err = require_admin_any()
         if err:
             return err
-        cur = mysql.connection.cursor()
+        conn = get_shard_connection(0)
+        cur = conn.cursor()
         actual = resolve_table(cur, table_name)
         if not actual:
             cur.close()
+            conn.close()
             return jsonify({'error': 'Invalid table'}), 400
         d = request.json
         cur.execute(
             "DELETE FROM `{}` WHERE `{}` = %s".format(actual, d['column']),
             (d['value'],)
         )
-        mysql.connection.commit()
+        conn.commit()
         cur.close()
+        conn.close()
         log_action(f"Deleted from {actual}", username)
         return jsonify({'message': 'Deleted successfully'})
     @app.route('/update/<table_name>', methods=['POST'])
@@ -727,10 +848,12 @@ def register_routes(app):
         username, err = require_admin_any()
         if err:
             return err
-        cur = mysql.connection.cursor()
+        conn = get_shard_connection(0)
+        cur = conn.cursor()
         actual = resolve_table(cur, table_name)
         if not actual:
             cur.close()
+            conn.close()
             return jsonify({'error': 'Invalid table'}), 400
         d          = request.json
         pk         = d['columns'][0]
@@ -740,8 +863,9 @@ def register_routes(app):
             "UPDATE `{}` SET {} WHERE `{}` = %s".format(actual, set_clause, pk),
             d['values'][1:] + [pk_val]
         )
-        mysql.connection.commit()
+        conn.commit()
         cur.close()
+        conn.close()
         log_action(f"Updated row in {actual}", username)
         return jsonify({'message': 'Updated successfully'})
     @app.route('/insert/<table_name>', methods=['POST'])
@@ -749,10 +873,12 @@ def register_routes(app):
         username, err = require_admin_any()
         if err:
             return err
-        cur = mysql.connection.cursor()
+        conn = get_shard_connection(0)
+        cur = conn.cursor()
         actual = resolve_table(cur, table_name)
         if not actual:
             cur.close()
+            conn.close()
             return jsonify({'error': 'Invalid table'}), 400
         d    = request.json
         cols = ", ".join(["`{}`".format(c) for c in d['columns']])
@@ -761,8 +887,9 @@ def register_routes(app):
             "INSERT INTO `{}` ({}) VALUES ({})".format(actual, cols, ph),
             d['values']
         )
-        mysql.connection.commit()
+        conn.commit()
         cur.close()
+        conn.close()
         log_action(f"Inserted into {actual}", username)
         return jsonify({'message': 'Inserted successfully'})
     # ─────────────────────────────────────────
