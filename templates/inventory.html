@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block nav_inventory %}active{% endblock %}
+{% block page_title %}Inventory{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>📦 Inventory & Stock Management</h2>
+  <p>Track ingredient levels, minimum thresholds and reorder alerts.</p>
+</div>
+
+{% if data %}
+{# data: IngredientID, Name, StockQty, Unit, MinStockLevel, ReorderLevel, LastUpdated, StockStatus #}
+
+{% set critical = namespace(v=0) %}
+{% set low      = namespace(v=0) %}
+{% set ok       = namespace(v=0) %}
+{% for row in data %}
+  {% if row[7]=='Critical' %}{% set critical.v = critical.v + 1 %}{% endif %}
+  {% if row[7]=='Low'      %}{% set low.v      = low.v      + 1 %}{% endif %}
+  {% if row[7]=='OK'       %}{% set ok.v       = ok.v       + 1 %}{% endif %}
+{% endfor %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">📦</div>
+    <div><div class="stat-val">{{ data|length }}</div><div class="stat-label">Ingredients</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">✅</div>
+    <div><div class="stat-val">{{ ok.v }}</div><div class="stat-label">Well Stocked</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--yellow-dim)">⚠️</div>
+    <div><div class="stat-val">{{ low.v }}</div><div class="stat-label">Low Stock</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">🚨</div>
+    <div><div class="stat-val">{{ critical.v }}</div><div class="stat-label">Critical</div></div>
+  </div>
+</div>
+
+{% if critical.v > 0 or low.v > 0 %}
+<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:.75rem">
+  <span style="font-size:1.2rem;flex-shrink:0">🚨</span>
+  <div>
+    <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--red);margin-bottom:.3rem">
+      Stock Alert — {{ critical.v + low.v }} ingredient(s) need attention
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+      {% for row in data %}
+        {% if row[7] in ('Critical','Low') %}
+        <span class="pill {% if row[7]=='Critical' %}pill-red{% else %}pill-yellow{% endif %}">
+          {{ row[1] }} — {{ row[2] }} {{ row[3] }}
+        </span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Stock Levels</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="inv-search" placeholder="Search ingredient…">
+      </div>
+      <select class="filter-select" id="inv-filter" onchange="filterInv()">
+        <option value="">All Status</option>
+        <option>OK</option><option>Low</option><option>Critical</option>
+      </select>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Ingredient</th><th>Stock</th><th>Unit</th>
+          <th>Min Level</th><th>Reorder At</th><th>Last Updated</th><th>Status</th>
+          {% if role == 'Admin' %}<th>Update</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody id="inv-tbody">
+        {% for row in data %}
+        <tr data-status="{{ row[7] }}">
+          <td>{{ row[0] }}</td>
+          <td><strong>{{ row[1] }}</strong></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span>{{ row[2] }}</span>
+              <div style="width:70px">
+                <div class="progress-wrap">
+                  {% set maxv = (row[4] * 2) if row[4] else 1 %}
+                  {% set pct  = [(row[2] / maxv * 100)|int, 100]|min %}
+                  <div class="progress-fill"
+                    style="width:{{ pct }}%;background:{% if row[7]=='Critical' %}var(--red){% elif row[7]=='Low' %}var(--yellow){% else %}var(--green){% endif %}">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+          <td>{{ row[3] }}</td>
+          <td>{{ row[4] }}</td>
+          <td>{{ row[5] }}</td>
+          <td>{{ row[6] or '—' }}</td>
+          <td>
+            <span class="pill
+              {% if row[7]=='Critical' %}pill-red
+              {% elif row[7]=='Low'    %}pill-yellow
+              {% else %}pill-green{% endif %}">
+              {{ row[7] }}
+            </span>
+          </td>
+          {% if role == 'Admin' %}
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="openEdit({{ row[0] }}, {{ row[2] }}, {{ row[4] }}, {{ row[5] }})">
+              ✏️ Edit
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="empty"><div class="empty-icon">📦</div><p>No inventory data found.</p></div>
+{% endif %}
+
+{% endblock %}
+
+{% block modals %}
+{% if role == 'Admin' %}
+<div class="modal-bg" id="edit-modal">
+  <div class="modal-box">
+    <h3>✏️ Update Stock</h3>
+    <input type="hidden" id="edit-id">
+    <div class="field-group"><label>Stock Quantity</label><input id="edit-qty" type="number" step="0.01"></div>
+    <div class="field-group"><label>Min Stock Level</label><input id="edit-min" type="number" step="0.01"></div>
+    <div class="field-group"><label>Reorder Level</label><input id="edit-reorder" type="number" step="0.01"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('edit-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEdit()">Update</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('inv-search').addEventListener('input', filterInv);
+function filterInv() {
+  const q  = document.getElementById('inv-search').value.toLowerCase();
+  const sf = document.getElementById('inv-filter').value;
+  document.querySelectorAll('#inv-tbody tr').forEach(row => {
+    const mq = !q  || row.textContent.toLowerCase().includes(q);
+    const ms = !sf || row.dataset.status === sf;
+    row.style.display = (mq && ms) ? '' : 'none';
+  });
+}
+
+function openEdit(id, qty, min, reorder) {
+  document.getElementById('edit-id').value     = id;
+  document.getElementById('edit-qty').value    = qty;
+  document.getElementById('edit-min').value    = min;
+  document.getElementById('edit-reorder').value= reorder;
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+async function submitEdit() {
+  const form = new FormData();
+  form.append('IngredientID', document.getElementById('edit-id').value);
+  form.append('StockQty',     document.getElementById('edit-qty').value);
+  form.append('MinStockLevel',document.getElementById('edit-min').value);
+  form.append('ReorderLevel', document.getElementById('edit-reorder').value);
+  const res = await fetch('/inventory/update', {method:'POST', body: form});
+  document.getElementById('edit-modal').classList.remove('open');
+  showToast(res.ok ? 'Stock updated!' : 'Update failed', res.ok ? 'success' : 'error');
+  if (res.ok) setTimeout(() => location.reload(), 900);
+}
+</script>
+{% endblock %}

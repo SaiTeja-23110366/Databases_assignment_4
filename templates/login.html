@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mess Management — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161820;
+    --border: #2a2d3a;
+    --accent: #f97316;
+    --accent-dim: rgba(249,115,22,0.12);
+    --text: #e8eaf0;
+    --muted: #6b7080;
+    --input-bg: #1e2130;
+    --error: #ef4444;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Left panel — decorative */
+  .left-panel {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0d0f14 0%, #111318 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 3rem;
+  }
+
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(249,115,22,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(249,115,22,0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+  }
+  .orb-1 { width: 340px; height: 340px; background: rgba(249,115,22,0.18); top: -80px; left: -80px; }
+  .orb-2 { width: 260px; height: 260px; background: rgba(249,115,22,0.08); bottom: 60px; right: 20px; }
+
+  .left-content { position: relative; z-index: 2; }
+
+  .plate-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1.5rem;
+    display: block;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .left-content h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 1rem;
+  }
+
+  .left-content h1 span { color: var(--accent); }
+
+  .left-content p {
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1.6;
+    max-width: 360px;
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2.5rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat-num { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* Right panel — form */
+  .right-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: var(--surface);
+  }
+
+  .form-card {
+    width: 100%;
+    max-width: 420px;
+    animation: slideUp 0.5s ease both;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2.5rem;
+  }
+
+  .brand-dot {
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .form-card h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+  }
+
+  .form-card .subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .form-group { margin-bottom: 1.25rem; }
+
+  label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.5rem;
+  }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+
+  .btn-login {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.9rem;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+  }
+
+  .btn-login:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-login:active { transform: translateY(0); }
+
+  .error-msg {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5;
+    border-radius: 8px;
+    padding: 0.7rem 1rem;
+    font-size: 0.88rem;
+    margin-bottom: 1.25rem;
+    display: none;
+  }
+
+  .role-hint {
+    margin-top: 2rem;
+    padding: 1rem;
+    background: var(--input-bg);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .role-hint p {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .role-badges {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .badge {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  .badge-admin { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+  .badge-user { background: rgba(107,112,128,0.15); color: var(--muted); border: 1px solid var(--border); }
+
+  @media (max-width: 768px) {
+    body { grid-template-columns: 1fr; }
+    .left-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="left-panel">
+  <div class="grid-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="left-content">
+    <span class="plate-icon">🍽️</span>
+    <h1>Mess <span>Management</span> System</h1>
+    <p>A centralized platform to manage meals, inventory, staff scheduling, and student billing — all from one place.</p>
+    <div class="stat-row">
+      <div class="stat"><span class="stat-num">7</span><span class="stat-label">Features</span></div>
+      <div class="stat"><span class="stat-num">21</span><span class="stat-label">Members</span></div>
+      <div class="stat"><span class="stat-num">10</span><span class="stat-label">Menu Items</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="right-panel">
+  <div class="form-card">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <span class="brand-name">IIT Gandhinagar · CS 432</span>
+    </div>
+
+    <h2>Welcome back</h2>
+    <p class="subtitle">Sign in to access the dashboard</p>
+
+    {% if error %}
+    <div class="error-msg" style="display:block">{{ error }}</div>
+    {% endif %}
+
+    {% if success %}
+    <div style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#86efac;border-radius:10px;padding:.7rem 1rem;font-size:.88rem;margin-bottom:1.25rem">
+      ✅ {{ success }}
+    </div>
+    {% endif %}
+
+    <form method="POST">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="Enter your username" required autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn-login">Sign In →</button>
+    </form>
+
+    <div style="text-align:center;margin-top:1.25rem;font-size:.85rem;color:var(--muted)">
+      Don't have an account?
+      <a href="/signup" style="color:var(--accent);font-weight:600;text-decoration:none">Sign up</a>
+    </div>
+
+    <div class="role-hint">
+      <p>Demo Accounts</p>
+      <div class="role-badges">
+        <span class="badge badge-admin">admin / 123</span>
+        <span class="badge badge-user">user1 / 123</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Daily Menu{% endblock %}
+{% block nav_menu %}active{% endblock %}
+{% block page_title %}Daily Menu{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>🍱 Menu Planning</h2>
+  <p>Browse scheduled meals by date.</p>
+</div>
+
+<!-- Date filter -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="card-body" style="padding:.85rem 1.25rem">
+    <form method="GET" action="/menu" style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <label style="font-size:.8rem;color:var(--muted);font-weight:500">Filter by Date</label>
+      <input type="date" name="date" value="{{ selected_date }}"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.42rem .85rem;color:var(--text);font-size:.84rem;outline:none">
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      {% if selected_date %}
+      <a href="/menu" class="btn btn-ghost btn-sm">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{% if data %}
+
+{# Group by date #}
+{% set seen_dates = [] %}
+{% for row in data %}
+  {% if row[0] not in seen_dates %}
+    {% set _ = seen_dates.append(row[0]) %}
+  {% endif %}
+{% endfor %}
+
+{% for date in seen_dates %}
+  <div style="margin-bottom:1.75rem">
+    <div style="font-family:'Syne',sans-serif;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.75rem;padding-left:.1rem">
+      📅 {{ date }}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem">
+      {% set seen_meals = [] %}
+      {% for row in data %}{% if row[0] == date and row[1] not in seen_meals %}{% set _ = seen_meals.append(row[1]) %}{% endif %}{% endfor %}
+
+      {% for mtype in seen_meals %}
+      <div class="card" style="margin-bottom:0">
+        <div class="card-head" style="padding:.8rem 1.1rem">
+          <div style="display:flex;align-items:center;gap:.6rem">
+            <span style="font-size:1.1rem">
+              {% if mtype=='Breakfast' %}🌅
+              {% elif mtype=='Lunch'   %}☀️
+              {% elif mtype=='Snacks'  %}🍵
+              {% else %}🌙{% endif %}
+            </span>
+            <div class="card-title" style="font-size:.88rem">{{ mtype }}</div>
+          </div>
+        </div>
+        <div class="card-body" style="padding:.75rem 1.1rem">
+          {% for item in data %}
+          {% if item[0] == date and item[1] == mtype %}
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-size:.88rem;font-weight:500">{{ item[2] }}</div>
+              <div style="font-size:.72rem;color:var(--muted)">{{ item[3] }}</div>
+            </div>
+            <div style="font-size:.8rem;color:var(--text2)">{{ item[4] }} {{ item[5] }}</div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endfor %}
+
+{% else %}
+<div class="empty">
+  <div class="empty-icon">🍽️</div>
+  <p>No menu scheduled{% if selected_date %} for {{ selected_date }}{% endif %}.
+  {% if role=='Admin' %}Use the All Tables page to add schedule items.{% endif %}</p>
+</div>
+{% endif %}
+
+{% endblock %}

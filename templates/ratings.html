@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Meal Ratings{% endblock %}
+{% block nav_ratings %}active{% endblock %}
+{% block page_title %}Meal Ratings{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>⭐ Meal Ratings</h2>
+  <p>Average student feedback scores per meal session.</p>
+</div>
+
+{% if data %}
+{# data: MealDate, MealType, AvgRating, TotalRatings, MinRating, MaxRating #}
+
+{% set sum_rating   = namespace(v=0) %}
+{% set sum_count    = namespace(v=0) %}
+{% for row in data %}
+  {% set sum_rating.v = sum_rating.v + row[2] %}
+  {% set sum_count.v  = sum_count.v  + row[3] %}
+{% endfor %}
+{% set overall_avg = sum_rating.v / data|length %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--yellow-dim)">⭐</div>
+    <div>
+      <div class="stat-val">{{ "{:.1f}".format(overall_avg) }}/5</div>
+      <div class="stat-label">Overall Avg</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">📝</div>
+    <div><div class="stat-val">{{ sum_count.v }}</div><div class="stat-label">Total Ratings</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">📅</div>
+    <div>
+      {% set seen = [] %}
+      {% for row in data %}{% if row[0] not in seen %}{% set _ = seen.append(row[0]) %}{% endif %}{% endfor %}
+      <div class="stat-val">{{ seen|length }}</div>
+      <div class="stat-label">Days Rated</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">🏆</div>
+    <div>
+      <div class="stat-val">{{ data|sort(attribute=2,reverse=True)|first|first }}</div>
+      <div class="stat-label">Best Rated Date</div>
+    </div>
+  </div>
+</div>
+
+<!-- Rating cards grid -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-bottom:1.75rem">
+  {% for row in data[:8] %}
+  <div class="card" style="margin-bottom:0">
+    <div class="card-body">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.65rem">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem">{{ row[1] }}</div>
+          <div style="font-size:.74rem;color:var(--muted)">{{ row[0] }}</div>
+        </div>
+        <span style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:
+          {% if row[2]>=4 %}var(--green){% elif row[2]>=3 %}var(--yellow){% else %}var(--red){% endif %}">
+          {{ row[2] }}
+        </span>
+      </div>
+      <div style="display:flex;gap:2px;margin-bottom:.5rem">
+        {% for i in range(1,6) %}
+        <span style="font-size:.95rem;color:{% if i<=row[2]|round %}var(--yellow){% else %}var(--border2){% endif %}">★</span>
+        {% endfor %}
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-fill"
+          style="width:{{ (row[2]/5*100)|int }}%;background:
+            {% if row[2]>=4 %}var(--green){% elif row[2]>=3 %}var(--yellow){% else %}var(--red){% endif %}">
+        </div>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.35rem">
+        {{ row[3] }} rating(s) · min {{ row[4] }} · max {{ row[5] }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Full table -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">All Ratings</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="rat-search" placeholder="Search date, meal…">
+      </div>
+      <select class="filter-select" id="meal-filter" onchange="filterRat()">
+        <option value="">All Meals</option>
+        <option>Breakfast</option><option>Lunch</option><option>Snacks</option><option>Dinner</option>
+      </select>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Meal</th><th>Avg Rating</th><th>Count</th><th>Min</th><th>Max</th><th>Stars</th></tr>
+      </thead>
+      <tbody id="rat-tbody">
+        {% for row in data %}
+        <tr data-meal="{{ row[1] }}">
+          <td>{{ row[0] }}</td>
+          <td>
+            <span class="pill
+              {% if row[1]=='Breakfast' %}pill-yellow
+              {% elif row[1]=='Lunch'   %}pill-orange
+              {% elif row[1]=='Snacks'  %}pill-blue
+              {% else %}pill-gray{% endif %}">
+              {{ row[1] }}
+            </span>
+          </td>
+          <td>
+            <span style="font-weight:700;color:
+              {% if row[2]>=4 %}var(--green){% elif row[2]>=3 %}var(--yellow){% else %}var(--red){% endif %}">
+              {{ row[2] }} / 5
+            </span>
+          </td>
+          <td>{{ row[3] }}</td>
+          <td>{{ row[4] }}</td>
+          <td>{{ row[5] }}</td>
+          <td>
+            <div style="display:flex;gap:2px">
+              {% for i in range(1,6) %}
+              <span style="font-size:.82rem;color:{% if i<=row[2]|round %}var(--yellow){% else %}var(--border2){% endif %}">★</span>
+              {% endfor %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Submit rating (students only) -->
+{% if member_role == 'Student' or role == 'Admin' %}
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><div class="card-title">➕ Submit a Rating</div></div>
+  <div class="card-body">
+    <form method="POST" action="/ratings/add" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.85rem;align-items:end">
+      <div class="field-group" style="margin-bottom:0"><label>Rating ID</label><input name="RatingID" type="number" required></div>
+      <div class="field-group" style="margin-bottom:0"><label>Schedule ID</label><input name="ScheduleID" type="number" required></div>
+      <div class="field-group" style="margin-bottom:0">
+        <label>Rating (1–5)</label>
+        <select name="Rating" class="filter-select" style="width:100%">
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty"><div class="empty-icon">⭐</div><p>No rating data found.</p></div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('rat-search')?.addEventListener('input', filterRat);
+function filterRat() {
+  const q  = document.getElementById('rat-search').value.toLowerCase();
+  const mf = document.getElementById('meal-filter').value;
+  document.querySelectorAll('#rat-tbody tr').forEach(row => {
+    const mq = !q  || row.textContent.toLowerCase().includes(q);
+    const mm = !mf || row.dataset.meal === mf;
+    row.style.display = (mq && mm) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

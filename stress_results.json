@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Dashboard (admin) \u2014 READ",
+    "total": 100,
+    "success": 100,
+    "errors": 0,
+    "rps": 5.9,
+    "avg_ms": 2304.8,
+    "p95_ms": 3010.1,
+    "max_ms": 3202.2
+  },
+  {
+    "name": "Menu page \u2014 READ",
+    "total": 150,
+    "success": 150,
+    "errors": 0,
+    "rps": 8.0,
+    "avg_ms": 2325.9,
+    "p95_ms": 2530.3,
+    "max_ms": 2593.2
+  },
+  {
+    "name": "Inventory table API \u2014 READ",
+    "total": 100,
+    "success": 100,
+    "errors": 0,
+    "rps": 5.7,
+    "avg_ms": 2121.2,
+    "p95_ms": 2450.8,
+    "max_ms": 2554.4
+  },
+  {
+    "name": "Audit Logs \u2014 READ",
+    "total": 50,
+    "success": 50,
+    "errors": 0,
+    "rps": 3.4,
+    "avg_ms": 2074.7,
+    "p95_ms": 2154.5,
+    "max_ms": 2166.8
+  },
+  {
+    "name": "Ratings submit \u2014 WRITE (concurrent students)",
+    "total": 60,
+    "success": 60,
+    "errors": 0,
+    "rps": 3.6,
+    "avg_ms": 4097.8,
+    "p95_ms": 4134.7,
+    "max_ms": 4152.6
+  },
+  {
+    "name": "Billing status update \u2014 WRITE (concurrent admins)",
+    "total": 45,
+    "success": 45,
+    "errors": 0,
+    "rps": 2.7,
+    "avg_ms": 4098.9,
+    "p95_ms": 4135.8,
+    "max_ms": 4149.3
+  },
+  {
+    "name": "Inventory update \u2014 WRITE (heavy concurrent)",
+    "total": 100,
+    "success": 100,
+    "errors": 0,
+    "rps": 4.7,
+    "avg_ms": 4198.1,
+    "p95_ms": 4385.5,
+    "max_ms": 4413.7
+  },
+  {
+    "name": "HIGH LOAD \u2014 500 concurrent menu reads",
+    "total": 500,
+    "success": 500,
+    "errors": 0,
+    "rps": 14.5,
+    "avg_ms": 2812.6,
+    "p95_ms": 9606.1,
+    "max_ms": 10387.1
+  }
+]

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Members{% endblock %}
+{% block nav_members %}active{% endblock %}
+{% block page_title %}Members{% endblock %}
+
+{% block topbar_extra %}
+  <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-modal').classList.add('open')">＋ Add Member</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">👥</div>
+    <div><div class="stat-val">{{ members|length }}</div><div class="stat-label">Total Members</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">🎓</div>
+    <div>
+      <div class="stat-val">{{ members | selectattr(5,'equalto','Student') | list | length }}</div>
+      <div class="stat-label">Students</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">🧑‍🍳</div>
+    <div>
+      <div class="stat-val">{{ members | selectattr(5,'equalto','Staff') | list | length }}</div>
+      <div class="stat-label">Staff</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">🛡️</div>
+    <div>
+      <div class="stat-val">{{ members | selectattr(5,'equalto','Admin') | list | length }}</div>
+      <div class="stat-label">Admins</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">All Members</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search" placeholder="Search by name, email, role…">
+      </div>
+      <select class="filter-select" id="role-filter" onchange="filterTable()">
+        <option value="">All Roles</option>
+        <option>Student</option><option>Staff</option><option>Admin</option>
+      </select>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Name</th><th>DOB</th><th>Email</th><th>Contact</th><th>Role</th>
+          {% if role == 'Admin' %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody id="member-tbody">
+        {% for m in members %}
+        <tr data-role="{{ m[5] }}">
+          <td>{{ m[0] }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--accent-dim);border:1px solid rgba(249,115,22,.3);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:.72rem;font-weight:700;color:var(--accent);flex-shrink:0">{{ m[1][0] }}</div>
+              {% if role == 'Admin' %}<span contenteditable="true">{{ m[1] }}</span>{% else %}{{ m[1] }}{% endif %}
+            </div>
+          </td>
+          {% if role == 'Admin' %}
+          <td contenteditable="true">{{ m[2] }}</td>
+          <td contenteditable="true">{{ m[3] }}</td>
+          <td contenteditable="true">{{ m[4] }}</td>
+          <td contenteditable="true">{{ m[5] }}</td>
+          <td>
+            <div style="display:flex;gap:5px">
+              <button class="btn btn-success btn-sm" onclick="saveMember(this, {{ m[0] }})">💾</button>
+              <button class="btn btn-danger btn-sm" onclick="delMember(this, {{ m[0] }})">🗑</button>
+            </div>
+          </td>
+          {% else %}
+          <td>{{ m[2] }}</td>
+          <td>{{ m[3] }}</td>
+          <td>{{ m[4] }}</td>
+          <td><span class="pill {% if m[5]=='Student' %}pill-blue{% elif m[5]=='Staff' %}pill-green{% else %}pill-orange{% endif %}">{{ m[5] }}</span></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block modals %}
+<div class="modal-bg" id="add-modal">
+  <div class="modal-box">
+    <h3>➕ Add New Member</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem">
+      <div class="field-group"><label>Member ID</label><input id="a-id" type="number" placeholder="e.g. 22"></div>
+      <div class="field-group"><label>Role</label>
+        <select id="a-role"><option>Student</option><option>Staff</option><option>Admin</option></select>
+      </div>
+      <div class="field-group" style="grid-column:1/-1"><label>Full Name</label><input id="a-name" placeholder="e.g. Raj Kumar"></div>
+      <div class="field-group"><label>Date of Birth</label><input id="a-dob" type="date"></div>
+      <div class="field-group"><label>Contact Number</label><input id="a-contact" placeholder="10-digit"></div>
+      <div class="field-group" style="grid-column:1/-1"><label>Email</label><input id="a-email" type="email" placeholder="e.g. raj@uni.edu"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('add-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="addMember()">Add Member</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const searchEl = document.getElementById('search');
+const filterEl = document.getElementById('role-filter');
+
+function filterTable() {
+  const q = searchEl.value.toLowerCase();
+  const rf = filterEl.value;
+  document.querySelectorAll('#member-tbody tr').forEach(row => {
+    const matchQ  = !q  || row.textContent.toLowerCase().includes(q);
+    const matchRF = !rf || row.dataset.role === rf;
+    row.style.display = (matchQ && matchRF) ? '' : 'none';
+  });
+}
+searchEl.addEventListener('input', filterTable);
+
+async function saveMember(btn, id) {
+  const cells = btn.closest('tr').querySelectorAll('td');
+  const name = cells[1].querySelector('span')?.innerText || cells[1].innerText;
+  const vals = [String(id), name, cells[2].innerText, cells[3].innerText, cells[4].innerText, cells[5].innerText];
+  const res = await fetch('/update/Member', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({columns:['MemberID','Name','DOB','Email','ContactNumber','Role'], values:vals})
+  });
+  const d = await res.json();
+  showToast(d.message||d.error, res.ok?'success':'error');
+}
+
+async function delMember(btn, id) {
+  if (!confirm(`Delete member #${id}? This will cascade to Student/Staff records.`)) return;
+  const res = await fetch('/delete/Member', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({column:'MemberID', value:id})
+  });
+  const d = await res.json();
+  if (res.ok) btn.closest('tr').remove();
+  showToast(d.message||d.error, res.ok?'success':'error');
+}
+
+async function addMember() {
+  const vals = [
+    document.getElementById('a-id').value,
+    document.getElementById('a-name').value,
+    document.getElementById('a-dob').value,
+    document.getElementById('a-email').value,
+    document.getElementById('a-contact').value,
+    document.getElementById('a-role').value,
+  ];
+  const res = await fetch('/insert/Member', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({columns:['MemberID','Name','DOB','Email','ContactNumber','Role'], values:vals})
+  });
+  const d = await res.json();
+  showToast(d.message||d.error, res.ok?'success':'error');
+  if (res.ok) { document.getElementById('add-modal').classList.remove('open'); setTimeout(()=>location.reload(),800); }
+}
+</script>
+{% endblock %}

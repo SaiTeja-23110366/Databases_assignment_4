@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}My Dashboard{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block page_title %}My Dashboard{% endblock %}
+
+{% block topbar_extra %}
+  <span class="rbadge rbadge-student">Student</span>
+{% endblock %}
+
+{% block content %}
+
+{% if profile %}
+
+<!-- Profile hero card -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--accent-dim);border:2.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--accent);flex-shrink:0">
+        {{ profile[0][0] }}
+      </div>
+      <div style="flex:1">
+        <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:.3rem">
+          {{ profile[0] }}
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+          <span class="pill pill-blue">Student</span>
+          <span class="pill pill-gray">{{ profile[6] }}</span>
+          <span style="font-size:.82rem;color:var(--muted)">ID: {{ profile[7] }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:1.2rem 0"></div>
+
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="info-label">Date of Birth</span>
+        <span class="info-val">{{ profile[1] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Email</span>
+        <span class="info-val">{{ profile[2] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Contact</span>
+        <span class="info-val">{{ profile[3] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Hostel Block</span>
+        <span class="info-val">Block {{ profile[4] }}, Room {{ profile[5] }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick stats -->
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">✅</div>
+    <div>
+      <div class="stat-val">
+        {{ meal_logs | selectattr(2, 'equalto', 'Consumed') | list | length }}
+      </div>
+      <div class="stat-label">Meals Consumed</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">❌</div>
+    <div>
+      <div class="stat-val">
+        {{ meal_logs | selectattr(2, 'equalto', 'Missed') | list | length }}
+      </div>
+      <div class="stat-label">Meals Missed</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">💳</div>
+    <div>
+      <div class="stat-val">
+        {{ payments | selectattr(3, 'equalto', 'Paid') | list | length }}
+      </div>
+      <div class="stat-label">Payments Made</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">⚠️</div>
+    <div>
+      <div class="stat-val">
+        {{ payments | selectattr(3, 'equalto', 'Pending') | list | length }}
+      </div>
+      <div class="stat-label">Payments Pending</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+
+  <!-- Mess payment history -->
+  <div class="card" style="margin-bottom:0">
+    <div class="card-head">
+      <div class="card-title">💳 Mess Payments</div>
+      <a href="/billing" class="btn btn-ghost btn-sm">View All →</a>
+    </div>
+    {% if payments %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Period</th><th>Amount</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr>
+            <td style="font-size:.8rem">{{ p[0] }}<br><span style="color:var(--muted)">→ {{ p[1] }}</span></td>
+            <td>₹{{ p[2] }}</td>
+            <td>
+              <span class="pill {% if p[3]=='Paid' %}pill-green{% else %}pill-red{% endif %}">
+                {{ p[3] }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>No payment records found.</p></div>
+    {% endif %}
+  </div>
+
+  <!-- Meal attendance log -->
+  <div class="card" style="margin-bottom:0">
+    <div class="card-head">
+      <div class="card-title">📊 Recent Meal Log</div>
+      <a href="/meal_attendance" class="btn btn-ghost btn-sm">View All →</a>
+    </div>
+    {% if meal_logs %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Meal</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for m in meal_logs %}
+          <tr>
+            <td>{{ m[0] }}</td>
+            <td>{{ m[1] }}</td>
+            <td>
+              <span class="pill
+                {% if m[2]=='Consumed' %}pill-green
+                {% elif m[2]=='Missed' %}pill-red
+                {% else %}pill-yellow{% endif %}">
+                {{ m[2] }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><p>No meal records found.</p></div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Quick links for student -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-top:1.5rem">
+  {% set links = [
+    ('/menu',            '🍱', 'Today\'s Menu'),
+    ('/meal_attendance', '📊', 'My Attendance'),
+    ('/billing',         '💳', 'My Payments'),
+    ('/ratings',         '⭐', 'Meal Ratings'),
+  ] %}
+  {% for href, icon, label in links %}
+  <a href="{{ href }}"
+     style="display:flex;align-items:center;gap:.7rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem 1rem;transition:border-color .2s,transform .15s"
+     onmouseover="this.style.borderColor='rgba(249,115,22,.4)';this.style.transform='translateY(-2px)'"
+     onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+    <span style="font-size:1.2rem">{{ icon }}</span>
+    <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem">{{ label }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty">
+  <div class="empty-icon">⚠️</div>
+  <p>No student profile found linked to this account.</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}All Tables{% endblock %}
+{% block nav_tables %}active{% endblock %}
+{% block page_title %}All Tables{% endblock %}
+
+{% block topbar_extra %}
+  <span class="rbadge rbadge-admin">Admin</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>🗄️ Database Tables</h2>
+  <p>View, edit, insert and delete rows in any table.</p>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+      <select class="filter-select" id="tableSelect" onchange="loadTable()" style="min-width:200px">
+        <option value="">— Select a table —</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="addRow()">＋ Add Row</button>
+    </div>
+    <div class="search-wrap" style="max-width:260px">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="tbl-search" placeholder="Search rows…">
+    </div>
+  </div>
+  <div id="table-container">
+    <div class="empty"><div class="empty-icon">🗄️</div><p>Select a table above to view its data</p></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cols = [], tbl = '';
+
+async function loadTableList() {
+  try {
+    const r = await fetch('/tables');
+    const tables = await r.json();
+    const sel = document.getElementById('tableSelect');
+    tables.forEach(name => {
+      const o = document.createElement('option');
+      o.value = o.textContent = name;
+      sel.appendChild(o);
+    });
+  } catch(e) { showToast('Could not load tables', 'error'); }
+}
+
+async function loadTable() {
+  tbl = document.getElementById('tableSelect').value;
+  if (!tbl) return;
+  const c = document.getElementById('table-container');
+  c.innerHTML = '<div class="empty"><p>Loading…</p></div>';
+
+  const r = await fetch(`/table/${tbl}`);
+  const d = await r.json();
+  cols = d.columns;
+
+  if (!d.data.length) {
+    c.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>No rows in this table</p></div>';
+    return;
+  }
+
+  let h = '<div class="tbl-wrap"><table><thead><tr>';
+  cols.forEach(col => h += `<th>${col}</th>`);
+  h += '<th>Actions</th></tr></thead><tbody id="gtbody">';
+
+  d.data.forEach(row => {
+    h += '<tr>';
+    row.forEach(cell => h += `<td contenteditable="true" style="min-width:70px">${cell ?? ''}</td>`);
+    h += `<td><div style="display:flex;gap:4px">
+      <button class="btn btn-success btn-sm" onclick="saveRow(this)">💾</button>
+      <button class="btn btn-danger btn-sm" onclick="delRow(this)">🗑</button>
+    </div></td></tr>`;
+  });
+  h += '</tbody></table></div>';
+  c.innerHTML = h;
+
+  // wire up search
+  document.getElementById('tbl-search').oninput = function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#gtbody tr').forEach(row =>
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none'
+    );
+  };
+}
+
+async function saveRow(btn) {
+  const cells = [...btn.closest('tr').querySelectorAll('td')].slice(0, -1);
+  const vals  = cells.map(c => c.innerText);
+  const res   = await fetch(`/update/${tbl}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({columns: cols, values: vals})
+  });
+  const d = await res.json();
+  showToast(d.message || d.error, res.ok ? 'success' : 'error');
+}
+
+async function delRow(btn) {
+  const cells = [...btn.closest('tr').querySelectorAll('td')];
+  const val   = cells[0].innerText;
+  if (!confirm(`Delete where ${cols[0]} = "${val}"?`)) return;
+  const res = await fetch(`/delete/${tbl}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({column: cols[0], value: val})
+  });
+  const d = await res.json();
+  if (res.ok) btn.closest('tr').remove();
+  showToast(d.message || d.error, res.ok ? 'success' : 'error');
+}
+
+function addRow() {
+  if (!tbl) { showToast('Select a table first', 'error'); return; }
+  const tbody = document.getElementById('gtbody');
+  if (!tbody) { showToast('Load a table first', 'error'); return; }
+  let h = '<tr>';
+  cols.forEach(() => h += '<td contenteditable="true" style="min-width:70px;background:var(--surface3)"></td>');
+  h += `<td><button class="btn btn-primary btn-sm" onclick="insertRow(this)">Insert</button></td></tr>`;
+  tbody.insertAdjacentHTML('beforeend', h);
+  tbody.lastElementChild.querySelector('td').focus();
+}
+
+async function insertRow(btn) {
+  const cells = [...btn.closest('tr').querySelectorAll('td')].slice(0, -1);
+  const vals  = cells.map(c => c.innerText);
+  const res   = await fetch(`/insert/${tbl}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({columns: cols, values: vals})
+  });
+  const d = await res.json();
+  showToast(d.message || d.error, res.ok ? 'success' : 'error');
+  if (res.ok) loadTable();
+}
+
+loadTableList();
+</script>
+{% endblock %}

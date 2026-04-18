@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}My Profile{% endblock %}
+{% block nav_profile %}active{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block content %}
+
+{% if member %}
+
+<!-- Profile hero -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+      <div style="width:68px;height:68px;border-radius:50%;background:var(--accent-dim);border:2.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:var(--accent);flex-shrink:0">
+        {{ member[1][0] }}
+      </div>
+      <div style="flex:1">
+        <div style="font-family:'Syne',sans-serif;font-size:1.35rem;font-weight:800;margin-bottom:.25rem">{{ member[1] }}</div>
+        <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+          <span class="pill {% if sub_role=='Student' %}pill-blue{% elif sub_role=='Staff' %}pill-green{% else %}pill-orange{% endif %}">
+            {{ sub_role }}
+          </span>
+          <span style="font-size:.82rem;color:var(--muted)">{{ member[3] }}</span>
+          <span style="font-size:.82rem;color:var(--muted)">{{ member[4] }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:1.25rem 0"></div>
+
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="info-label">Member ID</span>
+        <span class="info-val">{{ member[0] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Date of Birth</span>
+        <span class="info-val">{{ member[2] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Email</span>
+        <span class="info-val">{{ member[3] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Contact</span>
+        <span class="info-val">{{ member[4] }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── STUDENT VIEW ─── -->
+{% if sub_role == 'Student' %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
+
+  <!-- Quick stats -->
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">✅</div>
+    <div>
+      <div class="stat-val">{{ meals | selectattr(2,'equalto','Consumed') | list | length }}</div>
+      <div class="stat-label">Meals Consumed</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">❌</div>
+    <div>
+      <div class="stat-val">{{ meals | selectattr(2,'equalto','Missed') | list | length }}</div>
+      <div class="stat-label">Meals Missed</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Payment summary -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="card-head">
+    <div class="card-title">💳 Monthly Mess Payments</div>
+    <a href="/billing" class="btn btn-ghost btn-sm">View All →</a>
+  </div>
+  {% if payments %}
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Period</th><th>Amount</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for p in payments[:5] %}
+        <tr>
+          <td>{{ p[0] }} → {{ p[1] }}</td>
+          <td>₹{{ p[2] }}</td>
+          <td>
+            <span class="pill {% if p[3]=='Paid' %}pill-green{% else %}pill-red{% endif %}">
+              {{ p[3] }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><p>No payment records found.</p></div>
+  {% endif %}
+</div>
+
+<!-- Meal attendance -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">📊 Recent Meal Attendance</div>
+    <a href="/meal-attendance" class="btn btn-ghost btn-sm">View All →</a>
+  </div>
+  {% if meals %}
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Meal</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for m in meals[:10] %}
+        <tr>
+          <td>{{ m[0] }}</td>
+          <td>{{ m[1] }}</td>
+          <td>
+            <span class="pill
+              {% if m[2]=='Consumed' %}pill-green
+              {% elif m[2]=='Missed' %}pill-red
+              {% else %}pill-yellow{% endif %}">
+              {{ m[2] }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><p>No meal log entries found.</p></div>
+  {% endif %}
+</div>
+
+{% endif %}
+
+<!-- ─── STAFF VIEW ─── -->
+{% if sub_role == 'Staff' %}
+
+{% if salary_info %}
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">💼</div>
+    <div>
+      <div class="stat-val">{{ salary_info[0] }}</div>
+      <div class="stat-label">Job Role</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">💰</div>
+    <div>
+      <div class="stat-val">₹{{ "{:,.0f}".format(salary_info[1]) }}</div>
+      <div class="stat-label">Monthly Salary</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">📅</div>
+    <div>
+      <div class="stat-val">{{ salary_info[2] }}</div>
+      <div class="stat-label">Hire Date</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--yellow-dim)">⏱️</div>
+    <div>
+      <div class="stat-val">{{ shifts | sum(attribute=4) | round(1) }}h</div>
+      <div class="stat-label">Total Shift Hours</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Shift log -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">🕐 My Shift Log</div>
+  </div>
+  {% if shifts %}
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Shift</th><th>Check In</th><th>Check Out</th><th>Hours</th></tr>
+      </thead>
+      <tbody>
+        {% for s in shifts %}
+        <tr>
+          <td>{{ s[0] }}</td>
+          <td>
+            <span class="pill
+              {% if s[1]=='Morning' %}pill-yellow
+              {% elif s[1]=='Evening' %}pill-orange
+              {% else %}pill-blue{% endif %}">
+              {{ s[1] }}
+            </span>
+          </td>
+          <td>{{ s[2] }}</td>
+          <td>{{ s[3] or '—' }}</td>
+          <td>{{ s[4] or '—' }}h</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><p>No shift records found.</p></div>
+  {% endif %}
+</div>
+
+{% endif %}
+
+{% else %}
+<div class="empty"><div class="empty-icon">⚠️</div><p>No member record linked to this account.</p></div>
+{% endif %}
+
+{% endblock %}

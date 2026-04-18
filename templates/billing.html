@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Billing{% endblock %}
+{% block nav_billing %}active{% endblock %}
+{% block page_title %}Billing{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>💳 Monthly Mess Billing</h2>
+  <p>{% if view=='admin' %}Full payment overview for all members.{% else %}Your mess fee payment history.{% endif %}</p>
+</div>
+
+{% if data %}
+
+{% if view == 'admin' %}
+{# data: Name, StartDate, EndDate, Amount, Status, MonthlyPaymentID #}
+{% set paid_count    = namespace(v=0) %}
+{% set pending_count = namespace(v=0) %}
+{% set total_amt     = namespace(v=0) %}
+{% for row in data %}
+  {% if row[4]=='Paid'    %}{% set paid_count.v    = paid_count.v    + 1 %}{% endif %}
+  {% if row[4]=='Pending' %}{% set pending_count.v = pending_count.v + 1 %}{% endif %}
+  {% set total_amt.v = total_amt.v + row[3] %}
+{% endfor %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">📄</div>
+    <div><div class="stat-val">{{ data|length }}</div><div class="stat-label">Total Records</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">✅</div>
+    <div><div class="stat-val">{{ paid_count.v }}</div><div class="stat-label">Paid</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">⏳</div>
+    <div><div class="stat-val">{{ pending_count.v }}</div><div class="stat-label">Pending</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">💰</div>
+    <div><div class="stat-val">₹{{ "{:,.0f}".format(total_amt.v) }}</div><div class="stat-label">Total Amount</div></div>
+  </div>
+</div>
+
+{% else %}
+{# data: StartDate, EndDate, Amount, Status #}
+{% set paid_count    = namespace(v=0) %}
+{% set pending_count = namespace(v=0) %}
+{% set total_amt     = namespace(v=0) %}
+{% for row in data %}
+  {% if row[3]=='Paid'    %}{% set paid_count.v    = paid_count.v    + 1 %}{% endif %}
+  {% if row[3]=='Pending' %}{% set pending_count.v = pending_count.v + 1 %}{% endif %}
+  {% set total_amt.v = total_amt.v + row[2] %}
+{% endfor %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">💰</div>
+    <div><div class="stat-val">₹{{ "{:,.0f}".format(total_amt.v) }}</div><div class="stat-label">Total Billed</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">✅</div>
+    <div><div class="stat-val">{{ paid_count.v }}</div><div class="stat-label">Payments Made</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">⚠️</div>
+    <div><div class="stat-val">{{ pending_count.v }}</div><div class="stat-label">Pending</div></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Payment Records</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="bill-search" placeholder="Search…">
+      </div>
+      <select class="filter-select" id="bill-filter" onchange="filterBill()">
+        <option value="">All</option>
+        <option>Paid</option><option>Pending</option>
+      </select>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          {% if view == 'admin' %}
+          <th>Member</th><th>Start Date</th><th>End Date</th><th>Amount</th><th>Status</th><th>Action</th>
+          {% else %}
+          <th>Start Date</th><th>End Date</th><th>Amount</th><th>Status</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody id="bill-tbody">
+        {% for row in data %}
+        {% if view == 'admin' %}
+        {# row: Name, StartDate, EndDate, Amount, Status, MonthlyPaymentID #}
+        <tr data-status="{{ row[4] }}">
+          <td>{{ row[0] }}</td>
+          <td>{{ row[1] }}</td>
+          <td>{{ row[2] }}</td>
+          <td>₹{{ row[3] }}</td>
+          <td><span class="pill {% if row[4]=='Paid' %}pill-green{% else %}pill-red{% endif %}">{{ row[4] }}</span></td>
+          <td>
+            <form method="POST" action="/billing/update_status" style="display:flex;gap:.4rem;align-items:center">
+              <input type="hidden" name="payment_id" value="{{ row[5] }}">
+              <select name="status" class="filter-select" style="font-size:.75rem;padding:.25rem .5rem">
+                <option {% if row[4]=='Paid' %}selected{% endif %}>Paid</option>
+                <option {% if row[4]=='Pending' %}selected{% endif %}>Pending</option>
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm">Update</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        {# row: StartDate, EndDate, Amount, Status #}
+        <tr data-status="{{ row[3] }}">
+          <td>{{ row[0] }}</td>
+          <td>{{ row[1] }}</td>
+          <td>₹{{ row[2] }}</td>
+          <td><span class="pill {% if row[3]=='Paid' %}pill-green{% else %}pill-red{% endif %}">{{ row[3] }}</span></td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="empty"><div class="empty-icon">💸</div><p>No billing records found.</p></div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('bill-search').addEventListener('input', filterBill);
+function filterBill() {
+  const q  = document.getElementById('bill-search').value.toLowerCase();
+  const sf = document.getElementById('bill-filter').value;
+  document.querySelectorAll('#bill-tbody tr').forEach(row => {
+    const mq = !q  || row.textContent.toLowerCase().includes(q);
+    const ms = !sf || row.dataset.status === sf;
+    row.style.display = (mq && ms) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

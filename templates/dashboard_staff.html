@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}My Dashboard{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block page_title %}My Dashboard{% endblock %}
+
+{% block topbar_extra %}
+  <span class="rbadge rbadge-staff">Staff</span>
+{% endblock %}
+
+{% block content %}
+
+{% if profile %}
+
+<!-- Profile hero card -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--green-dim);border:2.5px solid var(--green);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--green);flex-shrink:0">
+        {{ profile[0][0] }}
+      </div>
+      <div style="flex:1">
+        <div style="font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:.3rem">
+          {{ profile[0] }}
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+          <span class="pill pill-green">Staff</span>
+          <span class="pill pill-gray">{{ profile[4] }}</span>
+          <span style="font-size:.82rem;color:var(--muted)">Staff ID: {{ profile[7] }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:1.2rem 0"></div>
+
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="info-label">Date of Birth</span>
+        <span class="info-val">{{ profile[1] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Email</span>
+        <span class="info-val">{{ profile[2] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Contact</span>
+        <span class="info-val">{{ profile[3] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Hire Date</span>
+        <span class="info-val">{{ profile[6] }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Salary & shift stats -->
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">💼</div>
+    <div>
+      <div class="stat-val">{{ profile[4] }}</div>
+      <div class="stat-label">Job Role</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">💰</div>
+    <div>
+      <div class="stat-val">₹{{ "{:,.0f}".format(profile[5]) }}</div>
+      <div class="stat-label">Monthly Salary</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">📅</div>
+    <div>
+      <div class="stat-val">{{ shifts | length }}</div>
+      <div class="stat-label">Shifts Logged</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--yellow-dim)">⏱️</div>
+    <div>
+      {% set total_hrs = namespace(val=0) %}
+      {% for s in shifts %}
+        {% if s[4] %}{% set total_hrs.val = total_hrs.val + s[4] %}{% endif %}
+      {% endfor %}
+      <div class="stat-val">{{ "{:.1f}".format(total_hrs.val) }}h</div>
+      <div class="stat-label">Total Hours</div>
+    </div>
+  </div>
+</div>
+
+<!-- Shift log table -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">🕐 My Shift Log</div>
+  </div>
+  {% if shifts %}
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Shift</th><th>Check In</th><th>Check Out</th><th>Hours</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in shifts %}
+        <tr>
+          <td>{{ s[0] }}</td>
+          <td>
+            <span class="pill
+              {% if s[1]=='Morning' %}pill-yellow
+              {% elif s[1]=='Evening' %}pill-orange
+              {% else %}pill-blue{% endif %}">
+              {{ s[1] }}
+            </span>
+          </td>
+          <td>{{ s[2] }}</td>
+          <td>{{ s[3] or '—' }}</td>
+          <td>
+            {% if s[4] %}
+            <span style="font-weight:600">{{ s[4] }}h</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><p>No shift records found.</p></div>
+  {% endif %}
+</div>
+
+<!-- Quick links for staff -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-top:1.5rem">
+  {% set links = [
+    ('/menu',    '🍱', 'Today\'s Menu'),
+    ('/ratings', '⭐', 'Meal Ratings'),
+  ] %}
+  {% for href, icon, label in links %}
+  <a href="{{ href }}"
+     style="display:flex;align-items:center;gap:.7rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem 1rem;transition:border-color .2s,transform .15s"
+     onmouseover="this.style.borderColor='rgba(34,197,94,.4)';this.style.transform='translateY(-2px)'"
+     onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+    <span style="font-size:1.2rem">{{ icon }}</span>
+    <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem">{{ label }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty">
+  <div class="empty-icon">⚠️</div>
+  <p>No staff profile found linked to this account.</p>
+</div>
+{% endif %}
+
+{% endblock %}

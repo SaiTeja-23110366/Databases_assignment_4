@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block page_title %}Admin Dashboard{% endblock %}
+
+{% block topbar_extra %}
+  <span class="rbadge rbadge-admin">Admin</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stats row -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">👥</div>
+    <div>
+      <div class="stat-val">{{ total_members }}</div>
+      <div class="stat-label">Total Members</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">🎓</div>
+    <div>
+      <div class="stat-val">{{ total_students }}</div>
+      <div class="stat-label">Students</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">🧑‍🍳</div>
+    <div>
+      <div class="stat-val">{{ total_staff }}</div>
+      <div class="stat-label">Staff</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">⏳</div>
+    <div>
+      <div class="stat-val">{{ pending_bills }}</div>
+      <div class="stat-label">Pending Bills</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">💰</div>
+    <div>
+      <div class="stat-val">₹{{ "{:,.0f}".format(total_expense) }}</div>
+      <div class="stat-label">Total Purchases</div>
+    </div>
+  </div>
+</div>
+
+<!-- Low stock alert -->
+{% if low_stock %}
+<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:flex-start;gap:.75rem">
+  <span style="font-size:1.3rem;flex-shrink:0">🚨</span>
+  <div>
+    <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--red);margin-bottom:.35rem">
+      Low Stock Alert — {{ low_stock|length }} ingredient(s) need reorder
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+      {% for item in low_stock %}
+      <span class="pill pill-red">{{ item[0] }} — {{ item[1] }} {{ item[2] }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Quick links grid -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem;margin-bottom:2rem">
+  {% set links = [
+    ('/menu',            '🍱', 'Daily Menu',       'View & manage meal schedule'),
+    ('/meal_attendance', '📊', 'Meal Attendance',  'Track student consumption'),
+    ('/billing',         '💳', 'Billing',           'Monthly payment status'),
+    ('/inventory',       '📦', 'Inventory',         'Stock & reorder alerts'),
+    ('/suppliers',       '🏭', 'Suppliers',         'Purchase & expense tracking'),
+    ('/waste',           '🗑️', 'Food Waste',        'Waste log & analysis'),
+    ('/ratings',         '⭐', 'Meal Ratings',      'Student feedback scores'),
+    ('/members',         '👥', 'Members',           'View & manage all members'),
+  ] %}
+  {% for href, icon, label, desc in links %}
+  <a href="{{ href }}"
+     style="display:flex;align-items:flex-start;gap:.75rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.15rem;transition:border-color .2s,transform .15s;text-decoration:none"
+     onmouseover="this.style.borderColor='rgba(249,115,22,.4)';this.style.transform='translateY(-2px)'"
+     onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+    <span style="font-size:1.3rem;flex-shrink:0">{{ icon }}</span>
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:3px">{{ label }}</div>
+      <div style="font-size:.75rem;color:var(--muted)">{{ desc }}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- All-tables CRUD -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">🗄️ Database Tables</div>
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+      <select class="filter-select" id="tableSelect" onchange="loadTable()" style="min-width:190px">
+        <option value="">— Select a table —</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="addRow()">＋ Add Row</button>
+    </div>
+  </div>
+  <div id="table-container">
+    <div class="empty"><div class="empty-icon">🗄️</div><p>Select a table above to view its data</p></div>
+  </div>
+</div>
+
+<!-- Audit log -->
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head">
+    <div class="card-title">📋 Recent Audit Logs</div>
+    <button class="btn btn-ghost btn-sm" onclick="loadLogs()">↻ Refresh</button>
+  </div>
+  <div id="log-container" class="card-body"
+       style="font-family:monospace;font-size:.78rem;max-height:260px;overflow-y:auto;line-height:1.7">
+    <div class="empty"><p>Loading…</p></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cols = [], tbl = '';
+
+async function loadTableList() {
+  try {
+    const r = await fetch('/tables');
+    const tables = await r.json();
+    const sel = document.getElementById('tableSelect');
+    tables.forEach(name => {
+      const o = document.createElement('option');
+      o.value = o.textContent = name;
+      sel.appendChild(o);
+    });
+  } catch(e) {}
+}
+
+async function loadTable() {
+  tbl = document.getElementById('tableSelect').value;
+  if (!tbl) return;
+  const c = document.getElementById('table-container');
+  c.innerHTML = '<div class="empty"><p>Loading…</p></div>';
+
+  const r = await fetch(`/table/${tbl}`);
+  const d = await r.json();
+  cols = d.columns;
+
+  if (!d.data.length) {
+    c.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>No rows in this table</p></div>';
+    return;
+  }
+
+  let h = '<div class="tbl-wrap"><table><thead><tr>';
+  cols.forEach(c => h += `<th>${c}</th>`);
+  h += '<th>Actions</th></tr></thead><tbody id="gtbody">';
+
+  d.data.forEach(row => {
+    h += '<tr>';
+    row.forEach(cell => h += `<td contenteditable="true" style="min-width:70px">${cell ?? ''}</td>`);
+    h += `<td><div style="display:flex;gap:4px">
+      <button class="btn btn-success btn-sm" onclick="saveRow(this)">💾</button>
+      <button class="btn btn-danger btn-sm" onclick="delRow(this)">🗑</button>
+    </div></td></tr>`;
+  });
+  h += '</tbody></table></div>';
+  c.innerHTML = h;
+}
+
+async function saveRow(btn) {
+  const cells = [...btn.closest('tr').querySelectorAll('td')].slice(0, -1);
+  const vals  = cells.map(c => c.innerText);
+  const res   = await fetch(`/update/${tbl}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({columns: cols, values: vals})
+  });
+  const d = await res.json();
+  showToast(d.message || d.error, res.ok ? 'success' : 'error');
+}
+
+async function delRow(btn) {
+  const cells = [...btn.closest('tr').querySelectorAll('td')];
+  const val   = cells[0].innerText;
+  if (!confirm(`Delete where ${cols[0]} = "${val}"?`)) return;
+  const res = await fetch(`/delete/${tbl}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({column: cols[0], value: val})
+  });
+  const d = await res.json();
+  if (res.ok) btn.closest('tr').remove();
+  showToast(d.message || d.error, res.ok ? 'success' : 'error');
+}
+
+function addRow() {
+  if (!tbl) { showToast('Select a table first', 'error'); return; }
+  const tbody = document.getElementById('gtbody');
+  if (!tbody) { showToast('Load a table first', 'error'); return; }
+  let h = '<tr>';
+  cols.forEach(() => h += '<td contenteditable="true" style="min-width:70px;background:var(--surface3)"></td>');
+  h += `<td><button class="btn btn-primary btn-sm" onclick="insertRow(this)">Insert</button></td></tr>`;
+  tbody.insertAdjacentHTML('beforeend', h);
+  tbody.lastElementChild.querySelector('td').focus();
+}
+
+async function insertRow(btn) {
+  const cells = [...btn.closest('tr').querySelectorAll('td')].slice(0, -1);
+  const vals  = cells.map(c => c.innerText);
+  const res   = await fetch(`/insert/${tbl}`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({columns: cols, values: vals})
+  });
+  const d = await res.json();
+  showToast(d.message || d.error, res.ok ? 'success' : 'error');
+  if (res.ok) loadTable();
+}
+
+async function loadLogs() {
+  const c = document.getElementById('log-container');
+  try {
+    const r = await fetch('/logs');
+    const d = await r.json();
+    if (!d.logs?.length) {
+      c.innerHTML = '<div class="empty"><p>No log entries yet</p></div>';
+      return;
+    }
+    c.innerHTML = [...d.logs].reverse().map(l =>
+      `<div style="padding:.25rem 0;border-bottom:1px solid var(--border);color:var(--text2)">${l}</div>`
+    ).join('');
+  } catch(e) {
+    c.innerHTML = '<div class="empty"><p>Could not load logs</p></div>';
+  }
+}
+
+loadTableList();
+loadLogs();
+</script>
+{% endblock %}

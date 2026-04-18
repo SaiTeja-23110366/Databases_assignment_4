@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Suppliers{% endblock %}
+{% block nav_suppliers %}active{% endblock %}
+{% block page_title %}Suppliers & Expenses{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>🏭 Supplier & Expense Management</h2>
+  <p>Monitor vendor relationships and total purchasing spend.</p>
+</div>
+
+{% if suppliers %}
+{# suppliers: SupplierID, CompanyName, ContactName, Phone, SupplierType, TotalSpent #}
+
+{% set total_spend  = namespace(v=0) %}
+{% set total_orders = namespace(v=0) %}
+{% for s in suppliers %}{% set total_spend.v = total_spend.v + s[5] %}{% endfor %}
+{% for p in purchases %}{% set total_orders.v = total_orders.v + 1 %}{% endfor %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">🏭</div>
+    <div><div class="stat-val">{{ suppliers|length }}</div><div class="stat-label">Suppliers</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-dim)">🛒</div>
+    <div><div class="stat-val">{{ purchases|length }}</div><div class="stat-label">Recent Orders</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">💰</div>
+    <div><div class="stat-val">₹{{ "{:,.0f}".format(total_spend.v) }}</div><div class="stat-label">Total Spend</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--yellow-dim)">📊</div>
+    <div>
+      <div class="stat-val">₹{{ "{:,.0f}".format(total_spend.v / suppliers|length) }}</div>
+      <div class="stat-label">Avg per Supplier</div>
+    </div>
+  </div>
+</div>
+
+<!-- Top supplier highlight -->
+{% set top = suppliers[0] %}
+<div style="background:var(--accent-dim);border:1px solid rgba(249,115,22,.25);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:.85rem">
+  <span style="font-size:1.4rem">🏆</span>
+  <div>
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.9rem;margin-bottom:2px">
+      Top Supplier: {{ top[1] }}
+    </div>
+    <div style="font-size:.8rem;color:var(--text2)">
+      {{ top[4] }} · ₹{{ "{:,.0f}".format(top[5]) }} total spend
+    </div>
+  </div>
+</div>
+
+<!-- Suppliers table -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="card-head">
+    <div class="card-title">All Suppliers</div>
+    <div class="search-wrap" style="max-width:260px">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="sup-search" placeholder="Search supplier…">
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Company</th><th>Contact</th><th>Phone</th><th>Type</th><th>Total Spend</th></tr>
+      </thead>
+      <tbody id="sup-tbody">
+        {% for s in suppliers %}
+        <tr>
+          <td>{{ s[0] }}</td>
+          <td><strong>{{ s[1] }}</strong></td>
+          <td>{{ s[2] }}</td>
+          <td>{{ s[3] }}</td>
+          <td><span class="pill pill-blue">{{ s[4] }}</span></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span>₹{{ "{:,.0f}".format(s[5]) }}</span>
+              <div style="width:60px">
+                <div class="progress-wrap">
+                  {% set pct = [(s[5] / total_spend.v * 100)|int, 100]|min if total_spend.v else 0 %}
+                  <div class="progress-fill" style="width:{{ pct }}%"></div>
+                </div>
+              </div>
+              <span style="font-size:.73rem;color:var(--muted)">{{ pct }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Recent purchases table -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Recent Purchases</div>
+  </div>
+  {% if purchases %}
+  {# purchases: PurchaseID, CompanyName, Ingredient, Quantity, UnitPrice, TotalCost, PurchaseDate #}
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Supplier</th><th>Ingredient</th><th>Qty</th><th>Unit Price</th><th>Total</th><th>Date</th></tr>
+      </thead>
+      <tbody>
+        {% for p in purchases %}
+        <tr>
+          <td>{{ p[0] }}</td>
+          <td>{{ p[1] }}</td>
+          <td>{{ p[2] }}</td>
+          <td>{{ p[3] }}</td>
+          <td>₹{{ p[4] }}</td>
+          <td><strong>₹{{ "{:,.0f}".format(p[5]) }}</strong></td>
+          <td>{{ p[6] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><p>No purchases found.</p></div>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="empty"><div class="empty-icon">🏭</div><p>No supplier data found.</p></div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('sup-search')?.addEventListener('input', () => {
+  const q = document.getElementById('sup-search').value.toLowerCase();
+  document.querySelectorAll('#sup-tbody tr').forEach(row =>
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none'
+  );
+});
+</script>
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Food Waste{% endblock %}
+{% block nav_waste %}active{% endblock %}
+{% block page_title %}Food Waste Tracking{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>🗑️ Food Waste Tracking</h2>
+  <p>Monitor waste quantities and categories per meal to reduce losses.</p>
+</div>
+
+{% if data %}
+{# data: MealDate, MealType, WasteQty_Kg, Waste_category, RecordedDate #}
+{# totals: Waste_category, Total #}
+
+{% set total_waste = namespace(v=0) %}
+{% for row in data %}{% set total_waste.v = total_waste.v + row[2] %}{% endfor %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">⚖️</div>
+    <div><div class="stat-val">{{ "{:.1f}".format(total_waste.v) }} kg</div><div class="stat-label">Total Waste</div></div>
+  </div>
+  {% for t in totals %}
+  <div class="stat-card">
+    <div class="stat-icon" style="background:{% if t[0]=='Solid' %}var(--yellow-dim){% else %}var(--blue-dim){% endif %}">
+      {% if t[0]=='Solid' %}🪨{% else %}💧{% endif %}
+    </div>
+    <div>
+      <div class="stat-val">{{ "{:.1f}".format(t[1]) }} kg</div>
+      <div class="stat-label">{{ t[0] }} Waste</div>
+    </div>
+  </div>
+  {% endfor %}
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">📅</div>
+    <div>
+      {% set seen = [] %}
+      {% for row in data %}{% if row[0] not in seen %}{% set _ = seen.append(row[0]) %}{% endif %}{% endfor %}
+      <div class="stat-val">{{ seen|length }}</div>
+      <div class="stat-label">Days Recorded</div>
+    </div>
+  </div>
+</div>
+
+<!-- Daily waste visual -->
+<div class="card" style="margin-bottom:1.5rem">
+  <div class="card-head"><div class="card-title">Daily Waste Overview</div></div>
+  <div class="card-body">
+    {% set seen_dates = [] %}
+    {% for row in data %}{% if row[0] not in seen_dates %}{% set _ = seen_dates.append(row[0]) %}{% endif %}{% endfor %}
+    {% for date in seen_dates %}
+      {% set day_total = namespace(v=0) %}
+      {% for row in data %}{% if row[0]==date %}{% set day_total.v = day_total.v + row[2] %}{% endif %}{% endfor %}
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.6rem">
+        <span style="font-size:.78rem;color:var(--muted);width:90px;flex-shrink:0">{{ date }}</span>
+        <div style="flex:1">
+          <div class="progress-wrap">
+            {% set pct = [(day_total.v / 20 * 100)|int, 100]|min %}
+            <div class="progress-fill"
+              style="width:{{ pct }}%;background:{% if pct>60 %}var(--red){% elif pct>30 %}var(--yellow){% else %}var(--green){% endif %}">
+            </div>
+          </div>
+        </div>
+        <span style="font-size:.82rem;font-weight:500;width:60px;text-align:right;flex-shrink:0">
+          {{ "{:.1f}".format(day_total.v) }} kg
+        </span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Waste log table -->
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">Waste Log</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="waste-search" placeholder="Search…">
+      </div>
+      <select class="filter-select" id="cat-filter" onchange="filterWaste()">
+        <option value="">All Categories</option>
+        <option>Solid</option><option>Liquid</option>
+      </select>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Meal Date</th><th>Meal Type</th><th>Waste (kg)</th><th>Category</th><th>Recorded</th></tr>
+      </thead>
+      <tbody id="waste-tbody">
+        {% for row in data %}
+        <tr data-cat="{{ row[3] }}">
+          <td>{{ row[0] }}</td>
+          <td>
+            <span class="pill
+              {% if row[1]=='Breakfast' %}pill-yellow
+              {% elif row[1]=='Lunch'   %}pill-orange
+              {% elif row[1]=='Snacks'  %}pill-blue
+              {% else %}pill-gray{% endif %}">
+              {{ row[1] }}
+            </span>
+          </td>
+          <td><strong>{{ row[2] }} kg</strong></td>
+          <td>
+            <span class="pill {% if row[3]=='Solid' %}pill-yellow{% else %}pill-blue{% endif %}">
+              {{ row[3] }}
+            </span>
+          </td>
+          <td>{{ row[4] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if role == 'Admin' %}
+<!-- Add waste log form -->
+<div class="card" style="margin-top:1.5rem">
+  <div class="card-head"><div class="card-title">➕ Log New Waste Entry</div></div>
+  <div class="card-body">
+    <form method="POST" action="/waste/add" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.85rem;align-items:end">
+      <div class="field-group" style="margin-bottom:0"><label>Waste ID</label><input name="WasteID" type="number" required></div>
+      <div class="field-group" style="margin-bottom:0"><label>Schedule ID</label><input name="ScheduleID" type="number" required></div>
+      <div class="field-group" style="margin-bottom:0"><label>Quantity (kg)</label><input name="WasteQty_Kg" type="number" step="0.01" required></div>
+      <div class="field-group" style="margin-bottom:0">
+        <label>Category</label>
+        <select name="Waste_category" class="filter-select" style="width:100%">
+          <option>Solid</option><option>Liquid</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Log Waste</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty"><div class="empty-icon">♻️</div><p>No waste records found.</p></div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('waste-search')?.addEventListener('input', filterWaste);
+function filterWaste() {
+  const q  = document.getElementById('waste-search').value.toLowerCase();
+  const cf = document.getElementById('cat-filter').value;
+  document.querySelectorAll('#waste-tbody tr').forEach(row => {
+    const mq = !q  || row.textContent.toLowerCase().includes(q);
+    const mc = !cf || row.dataset.cat === cf;
+    row.style.display = (mq && mc) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

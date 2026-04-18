@@ -1,0 +1,131 @@
+Assignment 4: Sharding of the Developed
+Application
+1. Project Objective
+This assignment involves implementinglogical data partitioning (sharding)across multiple
+simulated nodes or tables. A suitableShard Key(such as Region, User ID, or Hash value) will
+be selected, and application logic will be modified to correctly route queries to the appropriate
+shard. The exercise simulates real-world distributed database systems that scale horizontally
+to handle large datasets.
+Core Technical Pipeline:
+•Shard Key Selection
+Choose a suitable key that distributes data evenly across partitions
+•Data Partitioning
+Implement logical sharding across multiple simulated nodes or tables
+•Query Routing
+Modify application logic to route queries to the correct shard
+•Scalability Analysis
+Evaluate trade-offs in your sharded system
+Deadline
+6:00 PM, 18 April 2026
+Instructor:Dr. Y ogesh K. Meena
+April 6, 2026 • Semester II (2025 - 2026) • CS 432 – Databases (Course Project/Assignment 4)
+© 2026 Indian Institute of Technology, Gandhinagar. All rights reserved.
+CS 432 Databases (Course Projects - Track 1/Assignment 4)2
+1. Overview
+This assignment focuses on extending your developed application to supporthorizontal scaling through
+sharding. Y ou will select an appropriate Shard Key, partition your existing data across multiple simulated
+nodes or tables, and modify your application logic to correctly route queries to the right shard.
+This builds directly on the database schema (Assignment 1), the API and indexing layer (Assignment 2),
+and the transactional behaviour (Assignment 3) you have already implemented.
+2. Sharding Implementation
+What is Sharding?
+Sharding is a method ofhorizontal scalingwhere data is split across multiple partitions (shards), each
+stored in a separate table or simulated node. Rather than scaling up a single machine (vertical scaling),
+sharding allows the system to scale out across multiple nodes. Each shard holds a subset of the data,
+and queries are routed to the correct shard based on the Shard Key.
+Shard Key Selection
+A Shard Key determines how records are distributed across shards. Choose a key from your existing
+schema that satisfies the following:
+•High Cardinality:Enough distinct values to spread data evenly
+•Query-Aligned:Commonly used in theWHEREclauses of your APIs
+•Stable:Does not change frequently after a record is inserted
+Suitable candidates include:User ID / Member ID,Region / Location,Date Range, or aHash of the
+Primary Key.
+Partitioning Strategies
+Implementoneof the following strategies and justify your choice:
+•Range-Based:Divide records by value ranges of the Shard Key. E.g., IDs 1–1000→Shard 0,
+IDs 1001–2000→Shard 1.
+•Hash-Based:Apply a hash function to the Shard Key. E.g.,shard_id = hash(member_id) %
+num_shards.
+•Directory-Based:Use a lookup table that maps keys or key ranges to a specific shard, allowing
+flexible redistribution.
+SubTask 1: Shard Key Selection & Justification
+• Choose your Shard Key and justify it against the three criteria above
+• Identify the partitioning strategy you will use and explain why it suits your project
+• Estimate the expected data distribution across shards and note any risk of skew
+CS 432 Databases (Course Projects - Track 1/Assignment 4)3
+SubTask 2: Implement Data Partitioning
+• Createat least three simulated shard tables/nodesin your database
+• Migrate your existing data into the appropriate shards based on your chosen strategy
+• Ensure each shard contains only its designated subset of data
+• Verify that no records are lost or duplicated across shards after migration
+How to Simulate Shards:Y ou may use any of the following approaches:
+•Docker Instances:Run each shard as a separate database container, simulating distinct physical
+nodes
+•Multiple Databases on the Same Server:Create separate databases with different users on a
+single server to simulate shard isolation
+Note: Docker instances will be provided after 11 April for deployment. Until then, simulate sharding
+using either approach above.
+Suggested naming convention:
+shard_0_<table_name> # e.g. shard_0_members, shard_0_orders
+shard_1_<table_name>
+shard_2_<table_name>
+SubTask 3: Implement Query Routing
+Modify your application logic so that every query is directed to the correct shard:
+•Lookup queries:Route single-key lookups to the shard that holds that record
+•Insert operations:Direct new records to the correct shard on insertion
+•Range queries:Identify all shards that may contain relevant records, query each, and merge the
+results
+Modify your existing API endpoints from Assignment 2 to route each incoming request to the correct
+shard table based on the Shard Key extracted from the query or request body.
+SubTask 4: Scalability & Trade-offs Analysis
+Reflect on your sharding design with respect to the following:
+•Horizontal vs. Vertical Scaling:Explain how sharding differs from simply upgrading a single
+database server
+•Consistency:Can all shards always return the same up-to-date data? When might this break?
+•Availability:What happens to your system if one shard goes down?
+•Partition Tolerance:How does your design handle a simulated shard failure?
+Document your findings clearly in your report. This does not require additional code — a written analysis
+based on your implementation is sufficient.
+CS 432 Databases (Course Projects - Track 1/Assignment 4)4
+What to Verify
+•Correct Partitioning:Data is distributed across shards with no overlap or duplication
+•Router Correctness:Lookups, inserts, and range queries all reach the correct shard(s)
+•Data Integrity:No records are lost during migration; shards are consistent with the original
+dataset
+•Scalability Analysis:Trade-offs are clearly identified and explained
+Submission
+•Report:group_name_report.pdf
+•Short Video Demonstration
+Report Requirements
+First page must include:
+• GitHub repository link
+• Video link
+The report should explain:
+• Shard Key chosen and justification
+• Partitioning strategy used and why
+• How query routing is implemented in your application
+• Which SQL shard tables were created and how data was migrated
+• The sharding approach used (Docker instances or multiple databases) and how shard isolation
+was achieved
+• Results of the scalability and trade-offs analysis
+• Observations and limitations
+Video Requirements
+• Show your sharded tables and explain the partitioning logic
+• Demonstrate a query being routed to the correct shard
+• Show a range query spanning multiple shards, returning correct results
+• Briefly explain your scalability trade-offs analysis
+Evaluation Criteria
+• Shard Key Selection & Justification.
+• Correct sharding of existing data across simulated nodes, no data loss.
+• Query Routing.
+• Discussion of horizontal scaling, consistency, availability, and partition tolerance.
+• Report & Video Demonstration
+CS 432 Databases (Course Projects - Track 1/Assignment 4)5
+Conclusion
+The goal is to extend your existing database system with horizontal scaling capabilities through sharding.
+By selecting an appropriate Shard Key, partitioning your data, and routing queries correctly, you will
+simulate the core mechanics of how large-scale distributed databases manage data growth. The focus
+is on understanding the real-world trade-offs of sharding: scalability against consistency and availability.
+April 6, 2026 • CS 432 – Databases (Course Projects - Track 1/Assignment 4)
+© 2026 Indian Institute of Technology, Gandhinagar. All rights reserved.

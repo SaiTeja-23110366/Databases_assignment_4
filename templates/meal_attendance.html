@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Meal Attendance{% endblock %}
+{% block nav_attendance %}active{% endblock %}
+{% block page_title %}Meal Attendance{% endblock %}
+
+{% block content %}
+
+<div class="page-head">
+  <h2>📊 Meal Attendance</h2>
+  <p>{% if view == 'admin' %}Summary of all student meal consumption.{% else %}Your personal meal attendance record.{% endif %}</p>
+</div>
+
+{% if data %}
+
+{% if view == 'admin' %}
+{# data columns: MealDate, MealType, Status, Total #}
+{% set total_consumed  = namespace(v=0) %}
+{% set total_missed    = namespace(v=0) %}
+{% set total_opted_out = namespace(v=0) %}
+{% for row in data %}
+  {% if row[2] == 'Consumed'  %}{% set total_consumed.v  = total_consumed.v  + row[3] %}{% endif %}
+  {% if row[2] == 'Missed'    %}{% set total_missed.v    = total_missed.v    + row[3] %}{% endif %}
+  {% if row[2] == 'Opted-Out' %}{% set total_opted_out.v = total_opted_out.v + row[3] %}{% endif %}
+{% endfor %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">📋</div>
+    <div><div class="stat-val">{{ data|length }}</div><div class="stat-label">Total Records</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">✅</div>
+    <div><div class="stat-val">{{ total_consumed.v }}</div><div class="stat-label">Consumed</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">❌</div>
+    <div><div class="stat-val">{{ total_missed.v }}</div><div class="stat-label">Missed</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--yellow-dim)">⏭️</div>
+    <div><div class="stat-val">{{ total_opted_out.v }}</div><div class="stat-label">Opted Out</div></div>
+  </div>
+</div>
+{% endif %}
+
+{% if view == 'student' %}
+{# data columns: MealDate, MealType, Status #}
+{% set consumed  = namespace(v=0) %}
+{% set missed    = namespace(v=0) %}
+{% for row in data %}
+  {% if row[2] == 'Consumed' %}{% set consumed.v = consumed.v + 1 %}{% endif %}
+  {% if row[2] == 'Missed'   %}{% set missed.v   = missed.v   + 1 %}{% endif %}
+{% endfor %}
+
+<div class="stats-row" style="margin-bottom:1.5rem">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-dim)">✅</div>
+    <div><div class="stat-val">{{ consumed.v }}</div><div class="stat-label">Consumed</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-dim)">❌</div>
+    <div><div class="stat-val">{{ missed.v }}</div><div class="stat-label">Missed</div></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--accent-dim)">📅</div>
+    <div><div class="stat-val">{{ data|length }}</div><div class="stat-label">Total Logs</div></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <div class="card-title">{% if view=='admin' %}Attendance Summary{% else %}My Attendance Log{% endif %}</div>
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="att-search" placeholder="Search…">
+      </div>
+      <select class="filter-select" id="status-filter" onchange="filterAtt()">
+        <option value="">All Statuses</option>
+        <option>Consumed</option><option>Missed</option><option>Opted-Out</option>
+      </select>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Meal Type</th><th>Status</th>
+          {% if view == 'admin' %}<th>Total Students</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody id="att-tbody">
+        {% for row in data %}
+        <tr data-status="{{ row[2] }}">
+          <td>{{ row[0] }}</td>
+          <td>
+            <span class="pill
+              {% if row[1]=='Breakfast' %}pill-yellow
+              {% elif row[1]=='Lunch'   %}pill-orange
+              {% elif row[1]=='Snacks'  %}pill-blue
+              {% else %}pill-gray{% endif %}">
+              {{ row[1] }}
+            </span>
+          </td>
+          <td>
+            <span class="pill
+              {% if row[2]=='Consumed'  %}pill-green
+              {% elif row[2]=='Missed'  %}pill-red
+              {% else %}pill-yellow{% endif %}">
+              {{ row[2] }}
+            </span>
+          </td>
+          {% if view == 'admin' %}<td>{{ row[3] }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="empty"><div class="empty-icon">📭</div><p>No attendance records found.</p></div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('att-search').addEventListener('input', filterAtt);
+function filterAtt() {
+  const q  = document.getElementById('att-search').value.toLowerCase();
+  const sf = document.getElementById('status-filter').value;
+  document.querySelectorAll('#att-tbody tr').forEach(row => {
+    const mq = !q  || row.textContent.toLowerCase().includes(q);
+    const ms = !sf || row.dataset.status === sf;
+    row.style.display = (mq && ms) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

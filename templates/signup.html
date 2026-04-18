@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign Up · MessManager</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #161820;
+    --surface2:  #1e2130;
+    --border:    #2a2d3a;
+    --accent:    #f97316;
+    --accent-dim:rgba(249,115,22,.12);
+    --text:      #e8eaf0;
+    --muted:     #6b7080;
+    --input-bg:  #1e2130;
+    --green:     #22c55e;
+    --red:       #ef4444;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 2.25rem 2.5rem;
+    width: 100%;
+    max-width: 560px;
+    animation: fadeUp .4s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(16px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 1.75rem;
+  }
+
+  .brand-icon {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+  }
+
+  .brand-text {
+    font-family: 'Syne', sans-serif;
+    font-size: .82rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin-bottom: .3rem;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: .88rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 1.25rem 0;
+  }
+
+  .section-label {
+    font-family: 'Syne', sans-serif;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    margin-bottom: .85rem;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .85rem;
+  }
+
+  .field { margin-bottom: .85rem; }
+  .field.full { grid-column: 1 / -1; }
+
+  label {
+    display: block;
+    font-size: .74rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: .4rem;
+  }
+
+  input, select {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    padding: .65rem .9rem;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .9rem;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+
+  select option { background: var(--surface2); }
+
+  /* Role toggle */
+  .role-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .role-btn {
+    padding: .75rem;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--input-bg);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: .88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .2s;
+    text-align: center;
+  }
+
+  .role-btn:hover { border-color: var(--accent); color: var(--text); }
+  .role-btn.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+
+  .extra-fields { display: none; }
+  .extra-fields.show { display: block; }
+
+  .btn-submit {
+    width: 100%;
+    margin-top: .5rem;
+    padding: .9rem;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: .95rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity .2s, transform .15s;
+  }
+
+  .btn-submit:hover { opacity: .9; transform: translateY(-1px); }
+
+  .error-box {
+    background: rgba(239,68,68,.1);
+    border: 1px solid rgba(239,68,68,.3);
+    color: #fca5a5;
+    border-radius: 9px;
+    padding: .7rem 1rem;
+    font-size: .87rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .login-link {
+    text-align: center;
+    margin-top: 1.25rem;
+    font-size: .85rem;
+    color: var(--muted);
+  }
+
+  .login-link a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+  .hint {
+    font-size: .74rem;
+    color: var(--muted);
+    margin-top: .3rem;
+  }
+
+  @media (max-width: 480px) {
+    .card { padding: 1.5rem; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="brand">
+    <div class="brand-icon">🍽️</div>
+    <span class="brand-text">IIT Gandhinagar · CS 432</span>
+  </div>
+
+  <h2>Create Account</h2>
+  <p class="subtitle">Join the Mess Management System</p>
+
+  {% if error %}
+  <div class="error-box">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/signup" id="signup-form">
+
+    <!-- Role selector -->
+    <div class="section-label">I am a…</div>
+    <div class="role-toggle">
+      <button type="button" class="role-btn active" id="btn-student" onclick="setRole('Student')">
+        🎓 Student
+      </button>
+      <button type="button" class="role-btn" id="btn-staff" onclick="setRole('Staff')">
+        🧑‍🍳 Staff
+      </button>
+    </div>
+    <input type="hidden" name="member_role" id="member_role" value="Student">
+
+    <!-- Common fields -->
+    <div class="section-label">Personal Details</div>
+    <div class="grid-2">
+      <div class="field full">
+        <label>Full Name</label>
+        <input type="text" name="name" placeholder="e.g. Raj Kumar" required>
+      </div>
+      <div class="field">
+        <label>Date of Birth</label>
+        <input type="date" name="dob" required>
+      </div>
+      <div class="field">
+        <label>Contact Number</label>
+        <input type="tel" name="contact" placeholder="10-digit number" required>
+      </div>
+      <div class="field full">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="e.g. raj@uni.edu" required id="email-input">
+        <div class="hint">Your username will be the part before '@'</div>
+      </div>
+    </div>
+
+    <!-- Student-specific fields -->
+    <div class="extra-fields show" id="student-fields">
+      <div class="divider"></div>
+      <div class="section-label">Student Details</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Hostel Block</label>
+          <input type="text" name="hostel_block" id="hostel_block" placeholder="e.g. A">
+        </div>
+        <div class="field">
+          <label>Room No</label>
+          <input type="text" name="room_no" id="room_no" placeholder="e.g. 101">
+        </div>
+        <div class="field full">
+          <label>Program</label>
+          <select name="program" id="program">
+            <option value="">— Select Program —</option>
+            <option>BTech</option>
+            <option>MTech</option>
+            <option>MSc</option>
+            <option>PhD</option>
+            <option>MBA</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Staff-specific fields -->
+    <div class="extra-fields" id="staff-fields">
+      <div class="divider"></div>
+      <div class="section-label">Staff Details</div>
+      <div class="grid-2">
+        <div class="field">
+          <label>Job Role</label>
+          <select name="job_role" id="job_role">
+            <option value="">— Select Role —</option>
+            <option>Cook</option>
+            <option>Cleaner</option>
+            <option>Helper</option>
+            <option>Server</option>
+            <option>Manager</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Expected Salary (₹)</label>
+          <input type="number" name="salary" id="salary" placeholder="e.g. 15000" min="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-label">Account Security</div>
+    <div class="grid-2">
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" id="pw1" placeholder="Create a password" required minlength="3">
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input type="password" id="pw2" placeholder="Repeat password" required>
+      </div>
+    </div>
+
+    <!-- Username preview -->
+    <div id="username-preview" style="display:none;background:var(--accent-dim);border:1px solid rgba(249,115,22,.3);border-radius:9px;padding:.6rem .9rem;font-size:.84rem;margin-bottom:.85rem">
+      Your username will be: <strong id="uname-display" style="color:var(--accent)"></strong>
+    </div>
+
+    <button type="submit" class="btn-submit" onclick="return validateForm()">Create Account →</button>
+  </form>
+
+  <div class="login-link">
+    Already have an account? <a href="/login">Sign in</a>
+  </div>
+</div>
+
+<script>
+function setRole(role) {
+  document.getElementById('member_role').value = role;
+
+  document.getElementById('btn-student').classList.toggle('active', role === 'Student');
+  document.getElementById('btn-staff').classList.toggle('active',   role === 'Staff');
+
+  document.getElementById('student-fields').classList.toggle('show', role === 'Student');
+  document.getElementById('staff-fields').classList.toggle('show',   role === 'Staff');
+
+  // Toggle required on role-specific inputs
+  const studentInputs = document.querySelectorAll('#student-fields input, #student-fields select');
+  const staffInputs   = document.querySelectorAll('#staff-fields input, #staff-fields select');
+
+  studentInputs.forEach(el => el.required = (role === 'Student'));
+  staffInputs.forEach(el   => el.required = (role === 'Staff'));
+}
+
+// Show username preview as user types email
+document.getElementById('email-input').addEventListener('input', function() {
+  const username = this.value.split('@')[0];
+  const preview  = document.getElementById('username-preview');
+  if (username) {
+    document.getElementById('uname-display').textContent = username;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+});
+
+function validateForm() {
+  const pw1 = document.getElementById('pw1').value;
+  const pw2 = document.getElementById('pw2').value;
+  if (pw1 !== pw2) {
+    alert('Passwords do not match!');
+    return false;
+  }
+  return true;
+}
+
+// Init — set Student fields as required by default
+setRole('Student');
+</script>
+
+</body>
+</html>
